@@ -15,7 +15,7 @@ const siteName = "Toca y Recuerda";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tocayrecuerda.com";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(siteUrl || 'https://toca-y-recuerda.vercel.app'),
   title: {
     default: `${siteName} — Convierte tus recuerdos en algo que puedas tocar`,
     template: `%s · ${siteName}`,

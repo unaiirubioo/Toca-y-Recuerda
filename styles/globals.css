@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --font-sans y --font-display ya las define next/font/google en el
+   <html> (ver app/layout.tsx) — aquí no se redefinen para no competir
+   con esos valores reales. */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-cream-100 text-ink-900 antialiased;
+}
+
+/* Evita scroll horizontal accidental en móvil (spec #42) */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* Tamaño táctil mínimo accesible (spec #43) */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.focus-ring {
+  @apply outline-none ring-2 ring-ink-500 ring-offset-2 ring-offset-cream-100;
+}

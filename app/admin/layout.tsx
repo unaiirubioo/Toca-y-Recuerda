@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { BarChart3, Users, Image as ImageIcon, Nfc, Package, ShoppingBag, ArrowLeft } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 const NAV = [
   { href: "/admin", label: "Métricas", icon: BarChart3 },
   { href: "/admin/usuarios", label: "Usuarios", icon: Users },

@@ -1,80 +1,53 @@
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
-import { getCachedUserStatus, setCachedUserStatus } from "@/lib/security/user-status-cache";
+import { createServerClient } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
 
-// Refresca el token de sesión de Supabase en cada petición para que las
-// Server Actions y Server Components siempre tengan una sesión válida.
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request: { headers: request.headers } });
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Si faltan las variables en Vercel, no rompas el sitio con error 500
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return response;
+  }
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
+        getAll() {
+          return request.cookies.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
-          response.cookies.set(name, value, options);
-        },
-        remove(name: string, options: CookieOptions) {
-          response.cookies.set(name, "", options);
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
         },
       },
     }
   );
 
-  const { data } = await supabase.auth.getUser();
-  const { pathname } = request.nextUrl;
-
-  const isAuthPage =
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/registro") ||
-    pathname.startsWith("/recuperar");
-  const isProtectedPage =
-    pathname.startsWith("/dashboard") ||
-    pathname.startsWith("/onboarding") ||
-    pathname.startsWith("/albumes") ||
-    pathname.startsWith("/checkout") ||
-    pathname.startsWith("/cuenta");
-  const isAdminPage = pathname.startsWith("/admin");
-
-  // Esta redirección es solo una capa de UX para no mostrar pantallas que
-  // no tocan; la protección real de los datos vive en las políticas RLS
-  // de Supabase (nunca confiar únicamente en el middleware/frontend).
-  if (!data.user && (isProtectedPage || isAdminPage)) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-  if (data.user && isAuthPage) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-  if (data.user && (isProtectedPage || isAdminPage)) {
-    let status = getCachedUserStatus(data.user.id);
-    if (!status) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, is_blocked")
-        .eq("id", data.user.id)
-        .single();
-      const p = profile as any;
-      status = { role: p?.role ?? "user", isBlocked: !!p?.is_blocked };
-      setCachedUserStatus(data.user.id, status.role, status.isBlocked);
-    }
-
-    if (status.isBlocked) {
-      return NextResponse.redirect(new URL("/cuenta-bloqueada", request.url));
-    }
-    if (isAdminPage && status.role !== "admin") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-  }
+  // Refresca la sesión si existe
+  await supabase.auth.getUser();
 
   return response;
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)",
+    /*
+     * Aplica a todas las rutas excepto archivos estáticos (imágenes, favicons, etc.)
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

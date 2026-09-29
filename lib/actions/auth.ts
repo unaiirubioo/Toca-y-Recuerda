@@ -14,6 +14,8 @@ import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/client-ip";
 
 const PENDING_NFC_COOKIE = "pending_nfc_token";
+const PENDING_VERIFY_EMAIL_COOKIE = "pending_verify_email";
+const PENDING_VERIFY_UID_COOKIE = "pending_verify_uid";
 
 export type ActionResult = { error: string } | { error?: undefined };
 
@@ -49,7 +51,7 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email: parsed.data.email,
     password: parsed.data.password,
     options: {
@@ -60,10 +62,29 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
 
   if (error) return { error: friendlyAuthError(error.message) };
 
+  const cookieStore = await cookies();
+
   const nfc = formData.get("nfc");
   if (typeof nfc === "string" && nfc.length > 0) {
-    const cookieStore = await cookies();
     cookieStore.set(PENDING_NFC_COOKIE, nfc, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 });
+  }
+
+  // Guardamos email + uid del registro pendiente de confirmar: los
+  // necesita la pantalla "revisa tu email" para el botón "ya he
+  // verificado" y para reenviar el correo (spec).
+  if (data.user) {
+    cookieStore.set(PENDING_VERIFY_EMAIL_COOKIE, parsed.data.email, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+    cookieStore.set(PENDING_VERIFY_UID_COOKIE, data.user.id, {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
   }
 
   redirect("/registro/revisa-tu-email");
@@ -151,6 +172,79 @@ export async function updatePassword(formData: FormData): Promise<ActionResult> 
   if (error) return { error: "No hemos podido actualizar tu contraseña. Inténtalo otra vez." };
 
   redirect("/dashboard");
+}
+
+export type VerifyCheckResult =
+  | { status: "verified"; nfc: string | null }
+  | { status: "not-verified" }
+  | { status: "error"; error: string };
+
+/**
+ * Botón "Ya he verificado mi correo" de la pantalla de espera (spec):
+ * comprueba si el email ya está confirmado y, si lo está, inicia
+ * sesión directamente sin pedir la contraseña otra vez — usando el
+ * mismo mecanismo interno que un enlace de email (un token de un solo
+ * uso generado por el propio servidor, nunca la contraseña guardada,
+ * que no conservamos).
+ */
+export async function checkEmailVerifiedAndSignIn(): Promise<VerifyCheckResult> {
+  const cookieStore = await cookies();
+  const email = cookieStore.get(PENDING_VERIFY_EMAIL_COOKIE)?.value;
+  const uid = cookieStore.get(PENDING_VERIFY_UID_COOKIE)?.value;
+  if (!email || !uid) return { status: "error", error: "No encontramos tu registro pendiente. Prueba a iniciar sesión." };
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  const { data: userRes, error: userError } = await admin.auth.admin.getUserById(uid);
+  if (userError || !userRes.user) return { status: "error", error: "No hemos podido comprobar tu registro." };
+  if (!userRes.user.email_confirmed_at) return { status: "not-verified" };
+
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (linkError || !linkData?.properties?.hashed_token) {
+    return { status: "error", error: "Tu correo está verificado, pero no hemos podido iniciar tu sesión. Inicia sesión manualmente." };
+  }
+
+  const supabase = await createClient();
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    token_hash: linkData.properties.hashed_token,
+    type: "magiclink",
+  });
+  if (verifyError) {
+    return { status: "error", error: "Tu correo está verificado, pero no hemos podido iniciar tu sesión. Inicia sesión manualmente." };
+  }
+
+  const nfc = cookieStore.get(PENDING_NFC_COOKIE)?.value ?? null;
+  cookieStore.delete(PENDING_VERIFY_EMAIL_COOKIE);
+  cookieStore.delete(PENDING_VERIFY_UID_COOKIE);
+  revalidatePath("/", "layout");
+
+  return { status: "verified", nfc };
+}
+
+/** Botón "Reenviar correo de verificación" de la pantalla de espera. */
+export async function resendVerificationEmail(): Promise<ActionResult> {
+  const cookieStore = await cookies();
+  const email = cookieStore.get(PENDING_VERIFY_EMAIL_COOKIE)?.value;
+  if (!email) return { error: "No encontramos tu registro pendiente. Prueba a registrarte de nuevo." };
+
+  const limit = checkRateLimit(`resend-verify:${email.toLowerCase()}`, 4, 15 * 60 * 1000);
+  if (!limit.allowed) {
+    return { error: "Ya has pedido varios reenvíos. Espera unos minutos y revisa también el spam." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
+  });
+  if (error) return { error: "No hemos podido reenviar el correo. Inténtalo de nuevo en un momento." };
+
+  return {};
 }
 
 export async function updateMyName(formData: FormData): Promise<ActionResult> {

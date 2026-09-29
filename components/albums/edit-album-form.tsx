@@ -10,7 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { StorageUsage } from "@/components/ui/storage-usage";
-import { updateAlbum, publishAlbum, deleteAlbum, unlinkNfc, linkOwnedNfc } from "@/lib/actions/albums";
+import { useRouter } from "next/navigation";
+import { updateAlbum, deleteAlbum, unlinkNfc, linkOwnedNfc } from "@/lib/actions/albums";
+import { finalizeAlbumWithAi } from "@/lib/actions/ai-design";
 import type { AlbumFormValues } from "@/lib/validations/albums";
 import type { AlbumMediaItem } from "@/lib/queries/media";
 import { MediaUploader } from "@/components/albums/media-uploader";
@@ -81,12 +83,14 @@ export function EditAlbumForm({
     designLayout: album.designLayout ?? "grid",
     musicUrl: album.musicUrl ?? "",
     musicTitle: album.musicTitle ?? "",
-    privacy: album.privacy ?? "private",
+    privacy: album.privacy ?? "public",
     privacyPassword: "",
   });
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [publishing, setPublishing] = useState(false);
+  const router = useRouter();
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -103,6 +107,38 @@ export function EditAlbumForm({
         setSavedMessage("Cambios guardados.");
       }
     });
+  }
+
+  function publish() {
+    setError(null);
+    startTransition(async () => {
+      // Guardamos primero lo que haya en el formulario, así lo último
+      // que haya escrito el usuario no se pierde si publica sin pulsar
+      // antes "Guardar cambios".
+      await updateAlbum(album.id, form as Partial<AlbumFormValues>);
+      setPublishing(true);
+      const result = await finalizeAlbumWithAi(album.id);
+      if ("error" in result && result.error) {
+        setPublishing(false);
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  if (publishing) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center text-center">
+        <div className="mb-5 flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-amber-500/15 text-amber-600">
+          <Sparkles className="h-8 w-8" />
+        </div>
+        <h1 className="mb-2 font-display text-xl font-semibold text-ink-900">
+          Creando tu álbum con mucho cariño…
+        </h1>
+        <p className="text-sm text-ink-500">Estamos dando los últimos toques de diseño. Esto tarda solo unos segundos.</p>
+      </div>
+    );
   }
 
   return (
@@ -379,9 +415,9 @@ export function EditAlbumForm({
 
         <div className="flex items-center gap-3">
           {album.status === "draft" && (
-            <form action={() => publishAlbum(album.id)}>
-              <Button type="submit">Publicar álbum</Button>
-            </form>
+            <Button type="button" onClick={publish} disabled={pending}>
+              {pending && <Loader2 className="h-4 w-4 animate-spin" />} Publicar álbum
+            </Button>
           )}
           <form
             action={() => deleteAlbum(album.id)}

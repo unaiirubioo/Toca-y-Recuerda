@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/security/require-admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildNfcUrl } from "@/lib/nfc";
 
@@ -11,16 +12,18 @@ export type NfcRow = {
   albumId: string | null;
   scanCount: number;
   createdAt: string;
+  selfGenerated: boolean;
 };
 
 export async function listNfcTags(): Promise<NfcRow[]> {
+  await requireAdmin();
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("nfc_tags")
     .select(
       `
-      id, public_token, status, scan_count, created_at,
+      id, public_token, status, scan_count, created_at, self_generated,
       profiles ( full_name ),
       albums ( id, title )
       `
@@ -40,10 +43,12 @@ export async function listNfcTags(): Promise<NfcRow[]> {
     albumId: row.albums?.id ?? null,
     scanCount: row.scan_count,
     createdAt: row.created_at,
+    selfGenerated: !!row.self_generated,
   }));
 }
 
 export async function getNfcInventoryCounts(): Promise<Record<string, number>> {
+  await requireAdmin();
   const supabase = await createClient();
   const { data } = await supabase.from("nfc_tags").select("status");
   const counts: Record<string, number> = {};

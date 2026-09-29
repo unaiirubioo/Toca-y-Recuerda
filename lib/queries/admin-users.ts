@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminUserRow = {
@@ -11,6 +12,7 @@ export type AdminUserRow = {
 };
 
 export async function listUsers(): Promise<AdminUserRow[]> {
+  await requireAdmin();
   const admin = createAdminClient();
 
   const { data: profiles } = await admin
@@ -45,10 +47,11 @@ export async function listUsers(): Promise<AdminUserRow[]> {
 
 export type AdminUserDetail = AdminUserRow & {
   albums: { id: string; title: string; status: string; isPremium: boolean }[];
-  orders: { id: string; totalCents: number; status: string; createdAt: string }[];
+  orders: { id: string; totalCents: number; status: string; createdAt: string; isGift: boolean }[];
 };
 
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
+  await requireAdmin();
   const admin = createAdminClient();
 
   const { data: profile } = await admin
@@ -62,7 +65,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   const [{ data: authUser }, { data: albums }, { data: orders }] = await Promise.all([
     admin.auth.admin.getUserById(userId),
     admin.from("albums").select("id, title, status, is_premium").eq("owner_id", userId),
-    admin.from("orders").select("id, total_cents, status, created_at").eq("user_id", userId),
+    admin.from("orders").select("id, total_cents, status, created_at, is_gift").eq("user_id", userId),
   ]);
 
   return {
@@ -84,6 +87,7 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       totalCents: o.total_cents,
       status: o.status,
       createdAt: o.created_at,
+      isGift: !!o.is_gift,
     })),
   };
 }

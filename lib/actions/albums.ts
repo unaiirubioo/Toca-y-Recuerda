@@ -9,6 +9,7 @@ import { albumFormSchema, type AlbumFormValues } from "@/lib/validations/albums"
 import { getFreePlanLimits } from "@/lib/plans";
 import { hashPassword } from "@/lib/security/password";
 import { computeAlbumEligibility } from "@/lib/business/album-eligibility";
+import { requireAdmin } from "@/lib/security/require-admin";
 
 export type ActionResult = { error: string } | { error?: undefined; albumId?: string };
 
@@ -57,6 +58,60 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
   // 0005), así que a partir de aquí se trabaja con el cliente admin,
   // ya con la identidad del usuario verificada arriba.
   const admin = createAdminClient();
+  const v = parsed.data;
+
+  // Reutiliza un borrador vacío ya existente (spec: arregla el bug por
+  // el que reintentar el asistente tras un error, o simplemente
+  // recargar la página en el paso 1, creaba un álbum nuevo cada vez y
+  // consumía el único álbum gratuito de por vida sin que el usuario
+  // llegara a publicar nada). Un borrador "vacío" es uno sin fotos ni
+  // vídeos todavía — si ya tiene contenido, se trata como un álbum de
+  // verdad y no se reutiliza.
+  const { data: reusableDraft } = await admin
+    .from("albums")
+    .select("id")
+    .eq("owner_id", userId)
+    .eq("status", "draft")
+    .eq("photo_count", 0)
+    .eq("video_count", 0)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (reusableDraft) {
+    const draftId = (reusableDraft as any).id as string;
+    const { error: updateError } = await admin
+      .from("albums")
+      .update({
+        title: v.title,
+        event_date_start: v.eventDateStart || null,
+        event_date_end: v.eventDateEnd || null,
+        location_name: v.locationName || null,
+        location_lat: v.locationLat ?? null,
+        location_lng: v.locationLng ?? null,
+        design_theme: v.designTheme,
+        design_font: v.designFont,
+        design_layout: v.designLayout,
+        music_url: v.musicUrl || null,
+        music_title: v.musicTitle || null,
+        privacy: v.privacy,
+        privacy_password_hash: v.privacy === "private" && v.privacyPassword ? hashPassword(v.privacyPassword) : null,
+      })
+      .eq("id", draftId);
+
+    if (!updateError) {
+      if (v.memory) {
+        await admin.from("album_memories").delete().eq("album_id", draftId);
+        await admin.from("album_memories").insert({ album_id: draftId, content: v.memory });
+      }
+      if (nfcToken) {
+        await linkNfcTokenToAlbum(admin, draftId, userId, nfcToken);
+      }
+      revalidatePath("/dashboard");
+      return { albumId: draftId };
+    }
+    // Si el update falla por lo que sea, seguimos por el camino normal (crear uno nuevo).
+  }
 
   // Paso atómico (spec: corrige la condición de carrera de publicar
   // dos veces a la vez): intenta consumir un crédito Premium sin que
@@ -95,8 +150,6 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
       storage_limit_mb: freePlan.storageLimitMb,
     };
   }
-
-  const v = parsed.data;
 
   // Reintento ante una colisión de slug astronómicamente improbable
   // pero posible (spec: nunca dejar un error genérico sin reintentar).
@@ -148,24 +201,34 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
   }
 
   if (nfcToken) {
-    const { data: tag } = await admin
-      .from("nfc_tags")
-      .select("id, album_id")
-      .eq("public_token", nfcToken)
-      .maybeSingle();
-
-    // Solo se vincula si el NFC existe y todavía no tiene álbum asignado
-    // (spec #50): nunca se sobrescribe un NFC ya asociado a otro recuerdo.
-    if (tag && !(tag as any).album_id) {
-      await admin
-        .from("nfc_tags")
-        .update({ album_id: album.id, owner_id: userId, status: "active" })
-        .eq("id", (tag as any).id);
-    }
+    await linkNfcTokenToAlbum(admin, album.id, userId, nfcToken);
   }
 
   revalidatePath("/dashboard");
   return { albumId: album.id };
+}
+
+/** Vincula un NFC por su token a un álbum recién creado/reutilizado, solo si está libre. */
+async function linkNfcTokenToAlbum(
+  admin: ReturnType<typeof createAdminClient>,
+  albumId: string,
+  userId: string,
+  nfcToken: string
+): Promise<void> {
+  const { data: tag } = await admin
+    .from("nfc_tags")
+    .select("id, album_id")
+    .eq("public_token", nfcToken)
+    .maybeSingle();
+
+  // Solo se vincula si el NFC existe y todavía no tiene álbum asignado
+  // (spec #50): nunca se sobrescribe un NFC ya asociado a otro recuerdo.
+  if (tag && !(tag as any).album_id) {
+    await admin
+      .from("nfc_tags")
+      .update({ album_id: albumId, owner_id: userId, status: "active" })
+      .eq("id", (tag as any).id);
+  }
 }
 
 export async function updateAlbum(albumId: string, values: Partial<AlbumFormValues>): Promise<ActionResult> {
@@ -234,15 +297,6 @@ export async function updateAlbumMemories(albumId: string, memories: string[]): 
 
   revalidatePath(`/albumes/${albumId}/editar`);
   return {};
-}
-
-export async function publishAlbum(albumId: string): Promise<ActionResult> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("albums").update({ status: "published" }).eq("id", albumId);
-  if (error) return { error: "No hemos podido publicar el álbum. Inténtalo otra vez." };
-
-  revalidatePath("/dashboard");
-  redirect(`/albumes/${albumId}/editar`);
 }
 
 export async function linkOwnedNfc(albumId: string): Promise<ActionResult> {
@@ -347,8 +401,14 @@ export async function deleteAlbum(albumId: string): Promise<void> {
 }
 
 // Se usa desde el panel /admin. Necesita el cliente admin porque puede
-// borrar álbumes de cualquier usuario, no solo los propios.
+// borrar álbumes de cualquier usuario, no solo los propios — por eso
+// (y a diferencia del resto de acciones de este archivo, protegidas
+// por RLS) esta SIEMPRE debe comprobar el rol admin ella misma antes
+// de tocar nada; sin esta comprobación cualquiera podría borrar el
+// álbum de otra persona.
 export async function adminForceDeleteAlbum(albumId: string): Promise<void> {
+  await requireAdmin();
   const admin = createAdminClient();
   await admin.from("albums").delete().eq("id", albumId);
+  revalidatePath("/admin/albumes");
 }

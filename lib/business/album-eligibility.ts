@@ -31,3 +31,28 @@ export function computeAlbumEligibility(input: {
   }
   return { canCreate: false, usesCredit: false, limits: null };
 }
+
+export type AlbumAvailabilityStatus = {
+  freeRemaining: number;
+  paidCreditsAvailable: number;
+  totalAvailable: number;
+};
+
+/**
+ * Resumen en una sola cifra de "cuántos álbumes puede crear este
+ * usuario ahora mismo" (spec: un status claro, no solo créditos de
+ * pago sueltos) — suma el hueco que le quede del álbum gratuito de
+ * por vida con los créditos Premium que tenga sin usar.
+ */
+export function computeAlbumAvailability(input: {
+  freeAlbumCount: number;
+  freePlanMaxAlbums: number;
+  paidCreditsAvailable: number;
+}): AlbumAvailabilityStatus {
+  const freeRemaining = Math.max(0, input.freePlanMaxAlbums - input.freeAlbumCount);
+  return {
+    freeRemaining,
+    paidCreditsAvailable: input.paidCreditsAvailable,
+    totalAvailable: freeRemaining + input.paidCreditsAvailable,
+  };
+}

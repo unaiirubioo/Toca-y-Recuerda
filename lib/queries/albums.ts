@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { getFreePlanLimits } from "@/lib/plans";
+import { computeAlbumAvailability, type AlbumAvailabilityStatus } from "@/lib/business/album-eligibility";
 
 export type DashboardAlbum = {
   id: string;
@@ -63,6 +65,19 @@ export async function getUnassignedNfcCount(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/** NFC propiedad del usuario (comprados o autogenerados) todavía sin álbum, para elegir uno al crear un recuerdo nuevo. */
+export async function getUnassignedNfcList(userId: string): Promise<{ id: string; publicToken: string; selfGenerated: boolean }[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("nfc_tags")
+    .select("id, public_token, self_generated")
+    .eq("owner_id", userId)
+    .is("album_id", null)
+    .in("status", ["sold", "assigned"])
+    .order("created_at", { ascending: false });
+  return ((data as any[]) ?? []).map((r) => ({ id: r.id, publicToken: r.public_token, selfGenerated: !!r.self_generated }));
+}
+
 /** El NFC asociado a un álbum concreto, si lo hay (spec #50/#51). */
 export async function getAlbumNfc(albumId: string) {
   const supabase = await createClient();
@@ -94,4 +109,26 @@ export async function getAvailableCredits(userId: string) {  const supabase = aw
     albumCredits: albumCredits.count ?? 0,
     nfcCredits: nfcCredits.count ?? 0,
   };
+}
+
+/**
+ * Status claro de "cuántos álbumes puede crear este usuario ahora
+ * mismo" (spec), combinando el hueco que le quede del álbum gratuito
+ * de por vida con sus créditos Premium sin usar. Se usa tanto en
+ * /cuenta (para el propio usuario) como en /admin/usuarios/[id].
+ */
+export async function getAlbumAvailabilityStatus(userId: string): Promise<AlbumAvailabilityStatus> {
+  const supabase = await createClient();
+  const freePlan = await getFreePlanLimits();
+
+  const [{ count: freeAlbumCount }, credits] = await Promise.all([
+    supabase.from("albums").select("id", { count: "exact", head: true }).eq("owner_id", userId).eq("is_premium", false),
+    getAvailableCredits(userId),
+  ]);
+
+  return computeAlbumAvailability({
+    freeAlbumCount: freeAlbumCount ?? 0,
+    freePlanMaxAlbums: freePlan.maxAlbums,
+    paidCreditsAvailable: credits.albumCredits,
+  });
 }

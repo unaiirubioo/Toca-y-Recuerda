@@ -1,15 +1,20 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function FinalCta() {
+export async function FinalCta() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  const ctaHref = data.user ? "/albumes/nuevo" : "/registro";
+
   return (
     <section className="bg-ink-900 px-4 py-16 text-center text-white">
       <h2 className="font-display text-2xl font-semibold sm:text-3xl">
         Tu primer recuerdo te espera.
       </h2>
       <p className="mt-2 text-white/70">Empieza gratis, sin tarjeta.</p>
-      <Link href="/registro" className={cn(buttonVariants({ size: "lg" }), "mt-6")}>
+      <Link href={ctaHref} className={cn(buttonVariants({ size: "lg" }), "mt-6")}>
         Crear mi recuerdo
       </Link>
     </section>

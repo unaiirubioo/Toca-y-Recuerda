@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildNfcUrl } from "@/lib/nfc";
 
@@ -29,6 +30,7 @@ export type AdminOrder = {
 };
 
 export async function listOrders(): Promise<AdminOrder[]> {
+  await requireAdmin();
   const admin = createAdminClient();
 
   const { data: orders } = await admin

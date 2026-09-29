@@ -1,18 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateNfcToken, buildNfcUrl } from "@/lib/nfc";
-
-async function assertAdmin() {
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) throw new Error("No autenticado.");
-
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", userData.user.id).single();
-  if ((profile as any)?.role !== "admin") throw new Error("No autorizado.");
-}
+import { requireAdmin } from "@/lib/security/require-admin";
 
 /**
  * Crea un NFC nuevo en estado STOCK (spec #61). El cliente NUNCA programa
@@ -23,7 +14,7 @@ async function assertAdmin() {
  * pero posible (restricción UNIQUE en la base de datos).
  */
 export async function generateNfcTag(): Promise<{ token: string; url: string } | { error: string }> {
-  await assertAdmin();
+  await requireAdmin();
   const admin = createAdminClient();
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -43,7 +34,7 @@ export async function generateNfcTag(): Promise<{ token: string; url: string } |
 }
 
 export async function generateNfcBatch(quantity: number): Promise<{ error: string } | { count: number }> {
-  await assertAdmin();
+  await requireAdmin();
   const admin = createAdminClient();
 
   const rows = Array.from({ length: Math.min(Math.max(quantity, 1), 100) }, () => ({
@@ -69,8 +60,25 @@ export async function setNfcStatus(
   nfcId: string,
   status: "stock" | "reserved" | "sold" | "assigned" | "active" | "disabled"
 ): Promise<void> {
-  await assertAdmin();
+  await requireAdmin();
   const admin = createAdminClient();
   await admin.from("nfc_tags").update({ status }).eq("id", nfcId);
   revalidatePath("/admin/nfc");
+}
+
+/**
+ * Elimina por completo un NFC del inventario (spec: botón "eliminar"
+ * en /admin/nfc). Solo tiene sentido para uno que todavía no está
+ * vinculado a un álbum en uso real — si lo está, primero hay que
+ * desvincularlo (se avisa en el propio panel).
+ */
+export async function deleteNfcTag(nfcId: string): Promise<{ error: string } | { ok: true }> {
+  await requireAdmin();
+  const admin = createAdminClient();
+
+  const { error } = await admin.from("nfc_tags").delete().eq("id", nfcId);
+  if (error) return { error: "No hemos podido eliminar ese NFC." };
+
+  revalidatePath("/admin/nfc");
+  return { ok: true };
 }

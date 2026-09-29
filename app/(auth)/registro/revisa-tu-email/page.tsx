@@ -1,3 +1,5 @@
+import { VerifyEmailActions } from "@/components/auth/verify-email-actions";
+
 export default function CheckEmailAfterSignUpPage() {
   return (
     <div className="text-center">
@@ -9,6 +11,7 @@ export default function CheckEmailAfterSignUpPage() {
         Te hemos enviado un enlace para confirmar tu cuenta. En cuanto lo
         abras, podrás empezar a crear tu primer recuerdo.
       </p>
+      <VerifyEmailActions />
     </div>
   );
 }

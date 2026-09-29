@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminMetrics = {
@@ -11,6 +12,7 @@ export type AdminMetrics = {
 };
 
 export async function getAdminMetrics(): Promise<AdminMetrics> {
+  await requireAdmin();
   const admin = createAdminClient();
 
   const [{ count: totalUsers }, albumsRes, { data: payments }, { data: nfcRows }] = await Promise.all([

@@ -1,9 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
+import { createClient } from "@/lib/supabase/server";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function Hero() {
+export async function Hero() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+  const ctaHref = data.user ? "/albumes/nuevo" : "/registro";
+
   return (
     <section className="overflow-hidden px-4 pb-16 pt-12 sm:pt-20">
       <div className="mx-auto max-w-3xl text-center">
@@ -16,7 +21,7 @@ export function Hero() {
         </p>
 
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/registro" className={cn(buttonVariants({ size: "lg" }))}>
+          <Link href={ctaHref} className={cn(buttonVariants({ size: "lg" }))}>
             Crear mi recuerdo
           </Link>
           <a href="#como-funciona" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>

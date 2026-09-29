@@ -2,14 +2,23 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getUserDetail } from "@/lib/queries/admin-users";
+import { getStoreProducts } from "@/lib/queries/products";
+import { getAlbumAvailabilityStatus } from "@/lib/queries/albums";
 import { Badge } from "@/components/ui/badge";
 import { formatEuros } from "@/lib/format";
+import { GrantProductForm } from "@/components/admin/grant-product-form";
+import { RevokeGiftButton } from "@/components/admin/revoke-gift-button";
+import { AlbumAvailabilityBadge } from "@/components/account/album-availability-status";
 
 export const metadata: Metadata = { title: "Detalle de usuario · Admin" };
 
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const user = await getUserDetail(id);
+  const [user, products, availability] = await Promise.all([
+    getUserDetail(id),
+    getStoreProducts(),
+    getAlbumAvailabilityStatus(id),
+  ]);
   if (!user) notFound();
 
   return (
@@ -29,6 +38,8 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
           </Badge>
         </div>
       </div>
+
+      <AlbumAvailabilityBadge status={availability} />
 
       <section className="rounded-2xl bg-white p-5 shadow-soft">
         <h2 className="mb-3 font-display text-base font-semibold text-ink-900">
@@ -62,17 +73,21 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         ) : (
           <ul className="space-y-2 text-sm">
             {user.orders.map((o) => (
-              <li key={o.id} className="flex items-center justify-between">
+              <li key={o.id} className="flex items-center justify-between gap-2">
                 <span className="text-ink-500">
                   {new Intl.DateTimeFormat("es-ES", { dateStyle: "medium" }).format(new Date(o.createdAt))}
                 </span>
                 <span className="font-medium text-ink-900">{formatEuros(o.totalCents)}</span>
                 <Badge variant={o.status === "paid" ? "success" : "outline"}>{o.status}</Badge>
+                {o.isGift && <Badge variant="premium">Regalo</Badge>}
+                {o.isGift && o.status === "paid" && <RevokeGiftButton orderId={o.id} />}
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      <GrantProductForm userId={id} products={products} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { completeOnboarding, type OnboardingIntent } from "@/lib/actions/onboarding";
 
@@ -27,6 +28,11 @@ export function OnboardingFlow({ userName, nfcToken }: { userName?: string | nul
         <Button size="lg" onClick={() => setStep("intencion")}>
           Empezar
         </Button>
+        <p className="mt-4">
+          <Link href="/" className="text-sm text-ink-500 hover:underline">
+            Ahora no quiero crear el álbum, llévame a la página principal
+          </Link>
+        </p>
       </div>
     );
   }

@@ -3,10 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import { ProductsTable, type EditableProduct } from "@/components/admin/products-table";
 import { FreePlanCard } from "@/components/admin/free-plan-card";
 import { getFreePlanLimits } from "@/lib/plans";
+import { requireAdmin } from "@/lib/security/require-admin";
 
 export const metadata: Metadata = { title: "Productos · Admin" };
 
 export default async function AdminProductsPage() {
+  await requireAdmin();
   const supabase = await createClient();
   const [{ data }, freePlan] = await Promise.all([
     supabase

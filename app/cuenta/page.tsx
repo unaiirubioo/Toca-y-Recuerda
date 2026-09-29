@@ -2,12 +2,16 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
-import { getAvailableCredits, getUserAlbums } from "@/lib/queries/albums";
+import { getAvailableCredits, getUserAlbums, getAlbumAvailabilityStatus } from "@/lib/queries/albums";
 import { getMyOrders } from "@/lib/queries/my-account";
+import { getAlbumOnlyCreditsPurchased, getMySelfNfcTags } from "@/lib/queries/self-nfc";
+import { computeSelfNfcQuota } from "@/lib/business/self-nfc-quota";
 import { signOut } from "@/lib/actions/auth";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { EditNameForm } from "@/components/account/edit-name-form";
+import { MyNfcPanel } from "@/components/account/my-nfc-panel";
+import { AlbumAvailabilityBadge } from "@/components/account/album-availability-status";
 import { SiteHeader } from "@/components/layout/site-header";
 import { formatEuros } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -39,11 +43,15 @@ export default async function MyAccountPage() {
     .eq("id", userData.user.id)
     .single();
 
-  const [credits, albums, orders] = await Promise.all([
+  const [credits, albums, orders, albumOnlyCredits, selfNfcTags, availability] = await Promise.all([
     getAvailableCredits(userData.user.id),
     getUserAlbums(userData.user.id),
     getMyOrders(userData.user.id),
+    getAlbumOnlyCreditsPurchased(userData.user.id),
+    getMySelfNfcTags(userData.user.id),
+    getAlbumAvailabilityStatus(userData.user.id),
   ]);
+  const selfNfcQuota = computeSelfNfcQuota({ albumOnlyCreditsPurchased: albumOnlyCredits });
 
   return (
     <>
@@ -68,6 +76,9 @@ export default async function MyAccountPage() {
 
         <section className="rounded-2xl bg-white p-5 shadow-soft">
           <h2 className="mb-3 font-display text-base font-semibold text-ink-900">Disponible para ti</h2>
+          <div className="mb-4">
+            <AlbumAvailabilityBadge status={availability} />
+          </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <div>
               <p className="font-display text-2xl font-semibold text-ink-900">{albums.length}</p>
@@ -122,6 +133,8 @@ export default async function MyAccountPage() {
             </ul>
           )}
         </section>
+
+        <MyNfcPanel initialTags={selfNfcTags} quota={selfNfcQuota} />
 
         <form action={signOut}>
           <Button type="submit" variant="outline">

@@ -13,7 +13,7 @@ export const albumFormSchema = z.object({
   designLayout: z.enum(["grid", "revista", "linea-tiempo"]).default("grid"),
   musicUrl: z.string().url("Esa URL de música no parece válida.").optional().or(z.literal("")).nullable(),
   musicTitle: z.string().max(120).optional().nullable(),
-  privacy: z.enum(["public", "private"]).default("private"),
+  privacy: z.enum(["public", "private"]).default("public"),
   privacyPassword: z.string().max(60).optional().nullable(),
 });
 

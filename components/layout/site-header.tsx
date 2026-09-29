@@ -32,8 +32,8 @@ export async function SiteHeader() {
           <Link href="/#momentos" className="hover:text-ink-900">
             Momentos
           </Link>
-          <Link href="/blog" className="hover:text-ink-900">
-            Blog
+          <Link href="/preguntas-y-respuestas" className="hover:text-ink-900">
+            Preguntas y respuestas
           </Link>
         </nav>
 

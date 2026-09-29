@@ -20,5 +20,5 @@ export function verifyPassword(password: string, stored: string | null): boolean
   const expected = Buffer.from(hash, "hex");
   if (candidate.length !== expected.length) return false;
 
-  return timingSafeEqual(candidate, expected);
+  return timingSafeEqual(new Uint8Array(candidate), new Uint8Array(expected));
 }

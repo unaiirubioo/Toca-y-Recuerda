@@ -41,12 +41,22 @@ export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: str
 
   const { data: album } = await supabase
     .from("albums")
-    .select("title, location_name, photo_count, music_url")
+    .select("title, location_name, photo_count, video_count, music_url")
     .eq("id", albumId)
     .single();
 
   if (!album) return { error: "No hemos encontrado el álbum." };
   const a = album as any;
+
+  // Nunca se publica un álbum vacío (spec: antes se dejaba publicar sin
+  // título ni contenido). Exigimos un título real y al menos una foto
+  // o un vídeo — el resto de campos siguen siendo opcionales.
+  if (!a.title || String(a.title).trim().length < 2) {
+    return { error: "Ponle un nombre a tu recuerdo antes de publicarlo." };
+  }
+  if ((a.photo_count ?? 0) === 0 && (a.video_count ?? 0) === 0) {
+    return { error: "Añade al menos una foto o un vídeo antes de publicarlo." };
+  }
 
   const design = chooseAiDesign({
     title: a.title,

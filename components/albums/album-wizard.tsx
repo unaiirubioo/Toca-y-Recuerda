@@ -12,6 +12,7 @@ import { StepIndicator } from "@/components/albums/step-indicator";
 import { LocationAutocomplete } from "@/components/albums/location-autocomplete";
 import { MediaUploader } from "@/components/albums/media-uploader";
 import { createAlbum, updateAlbum, updateAlbumMemories } from "@/lib/actions/albums";
+import { NfcAssociationStep } from "@/components/albums/nfc-association-step";
 import { finalizeAlbumWithAi } from "@/lib/actions/ai-design";
 import type { AlbumFormValues } from "@/lib/validations/albums";
 
@@ -48,7 +49,7 @@ const initialState: FormState = {
   designLayout: "grid",
   musicUrl: "",
   musicTitle: "",
-  privacy: "private",
+  privacy: "public",
   privacyPassword: "",
 };
 
@@ -70,6 +71,10 @@ const STEP_TITLES = [
 const PHOTOS_STEP = 7;
 
 export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
+  // Si ya llegamos con un NFC (por ejemplo, tras escanearlo físicamente),
+  // saltamos directamente el paso de "¿asociar NFC?" — ya está resuelto.
+  const [nfcResolved, setNfcResolved] = useState(!!nfcToken);
+  const [resolvedNfcToken, setResolvedNfcToken] = useState<string | null>(nfcToken ?? null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(initialState);
   const [albumId, setAlbumId] = useState<string | null>(null);
@@ -101,7 +106,7 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
         return;
       }
       startTransition(async () => {
-        const result = await createAlbum({ ...form }, nfcToken);
+        const result = await createAlbum({ ...form }, resolvedNfcToken);
         if ("error" in result && result.error) {
           setError(result.error);
           return;
@@ -150,6 +155,22 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
       }
       router.push(`/albumes/${albumId}/editar?creando=1`);
     });
+  }
+
+  if (!nfcResolved) {
+    return (
+      <div className="mx-auto w-full max-w-xl">
+        <h1 className="mb-6 font-display text-2xl font-semibold text-ink-900">
+          ¿Quieres asociar un NFC a este recuerdo?
+        </h1>
+        <NfcAssociationStep
+          onResolved={(token) => {
+            setResolvedNfcToken(token);
+            setNfcResolved(true);
+          }}
+        />
+      </div>
+    );
   }
 
   if (finalizing) {

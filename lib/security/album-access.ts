@@ -32,5 +32,5 @@ export function verifyAlbumAccessToken(albumId: string, token: string | undefine
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  return timingSafeEqual(new Uint8Array(a), new Uint8Array(b));
 }

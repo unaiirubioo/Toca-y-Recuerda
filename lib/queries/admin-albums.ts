@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AdminAlbumRow = {
@@ -13,6 +14,7 @@ export type AdminAlbumRow = {
 };
 
 export async function listAllAlbums(): Promise<AdminAlbumRow[]> {
+  await requireAdmin();
   const admin = createAdminClient();
 
   const { data } = await admin

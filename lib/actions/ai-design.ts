@@ -18,7 +18,7 @@ async function generateAiBlurb(title: string, locationName: string | null): Prom
 
   try {
     const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`, {
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(4500),
     });
     if (!res.ok) return null;
 

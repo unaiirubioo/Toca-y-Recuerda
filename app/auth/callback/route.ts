@@ -50,5 +50,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(verifiedUrl);
   }
 
+  // Si no ha llegado ni `code` ni `token_hash`, es probable que Supabase
+  // esté usando el flujo "implícito": los tokens van en el FRAGMENTO de
+  // la URL (`#access_token=...`), que el navegador nunca envía al
+  // servidor — así que esta ruta jamás podría leerlo, por diseño de los
+  // navegadores. Mandamos a una página cliente que sí puede leer
+  // `window.location.hash` y completar el inicio de sesión desde ahí.
+  if (!code && !tokenHash) {
+    const fallbackUrl = new URL(`${origin}/auth/completar-sesion`);
+    fallbackUrl.searchParams.set("next", next);
+    return NextResponse.redirect(fallbackUrl);
+  }
+
   return NextResponse.redirect(`${origin}/login?error=enlace-invalido`);
 }

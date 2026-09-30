@@ -122,7 +122,12 @@ export async function getAlbumAvailabilityStatus(userId: string): Promise<AlbumA
   const freePlan = await getFreePlanLimits();
 
   const [{ count: freeAlbumCount }, credits] = await Promise.all([
-    supabase.from("albums").select("id", { count: "exact", head: true }).eq("owner_id", userId).eq("is_premium", false),
+    supabase
+      .from("albums")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", userId)
+      .eq("is_premium", false)
+      .or("status.eq.published,photo_count.gt.0,video_count.gt.0"),
     getAvailableCredits(userId),
   ]);
 

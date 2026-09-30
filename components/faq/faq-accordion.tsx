@@ -23,7 +23,9 @@ export function FaqAccordion({ entries }: { entries: { q: string; a: string }[] 
                 className={`h-5 w-5 flex-shrink-0 text-ink-500 transition-transform ${open ? "rotate-180" : ""}`}
               />
             </button>
-            {open && <p className="px-6 pb-5 text-sm text-ink-700">{entry.a}</p>}
+            {open && (
+              <p className="border-t border-ink-100 px-6 pb-5 pt-4 text-sm text-ink-700">{entry.a}</p>
+            )}
           </div>
         );
       })}

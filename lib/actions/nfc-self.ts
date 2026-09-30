@@ -36,6 +36,7 @@ export async function generateMySelfNfc(): Promise<GenerateSelfNfcResult> {
 
   const admin = createAdminClient();
 
+  let lastError: string | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     const token = generateNfcToken();
     const { error } = await admin.from("nfc_tags").insert({
@@ -49,7 +50,13 @@ export async function generateMySelfNfc(): Promise<GenerateSelfNfcResult> {
       revalidatePath("/cuenta");
       return { token, url: buildNfcUrl(token) };
     }
+    lastError = error.message;
   }
 
-  return { error: "No hemos podido generar tu NFC. Inténtalo otra vez." };
+  // Antes este mensaje era siempre el mismo, sin pista de la causa —
+  // si ves este error, la causa casi siempre es que en Supabase falta
+  // ejecutar la migración 0006_self_nfc_and_fixes.sql (añade la
+  // columna nfc_tags.self_generated que usa este insert).
+  console.error("generateMySelfNfc:", lastError);
+  return { error: `No hemos podido generar tu NFC (${lastError ?? "error desconocido"}).` };
 }

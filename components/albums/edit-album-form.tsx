@@ -90,6 +90,7 @@ export function EditAlbumForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [publishing, setPublishing] = useState(false);
+  const [publishProgress, setPublishProgress] = useState(0);
   const router = useRouter();
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -111,32 +112,62 @@ export function EditAlbumForm({
 
   function publish() {
     setError(null);
+    setPublishing(true);
+    setPublishProgress(6);
+
+    // Barra de progreso "de verdad" (spec #10): sube sola hasta el 90%
+    // en unos 3 segundos para que el usuario vea que algo está
+    // pasando, y se completa al 100% en cuanto el servidor responde de
+    // verdad — nunca se queda esperando sin más información.
+    const tick = setInterval(() => {
+      setPublishProgress((p) => (p >= 90 ? p : p + Math.random() * 10 + 4));
+    }, 220);
+
     startTransition(async () => {
-      // Guardamos primero lo que haya en el formulario, así lo último
-      // que haya escrito el usuario no se pierde si publica sin pulsar
-      // antes "Guardar cambios".
-      await updateAlbum(album.id, form as Partial<AlbumFormValues>);
-      setPublishing(true);
-      const result = await finalizeAlbumWithAi(album.id);
-      if ("error" in result && result.error) {
+      try {
+        // Guardamos primero lo que haya en el formulario, así lo
+        // último que haya escrito el usuario no se pierde si publica
+        // sin pulsar antes "Guardar cambios".
+        await updateAlbum(album.id, form as Partial<AlbumFormValues>);
+        const result = await finalizeAlbumWithAi(album.id);
+
+        if ("error" in result && result.error) {
+          setError(result.error);
+          return;
+        }
+        setPublishProgress(100);
+        await new Promise((r) => setTimeout(r, 300));
+        router.refresh();
+      } catch (err) {
+        // Antes, cualquier fallo inesperado aquí dejaba la pantalla de
+        // "creando con mucho cariño" congelada para siempre, sin forma
+        // de salir (spec: "se queda pillado y no avanza").
+        console.error("publish:", err);
+        setError("Algo ha fallado al publicar. Inténtalo otra vez.");
+      } finally {
+        clearInterval(tick);
         setPublishing(false);
-        setError(result.error);
-        return;
+        setPublishProgress(0);
       }
-      router.refresh();
     });
   }
 
   if (publishing) {
     return (
-      <div className="flex min-h-[70vh] flex-col items-center justify-center text-center">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
         <div className="mb-5 flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-amber-500/15 text-amber-600">
           <Sparkles className="h-8 w-8" />
         </div>
         <h1 className="mb-2 font-display text-xl font-semibold text-ink-900">
           Creando tu álbum con mucho cariño…
         </h1>
-        <p className="text-sm text-ink-500">Estamos dando los últimos toques de diseño. Esto tarda solo unos segundos.</p>
+        <p className="mb-5 text-sm text-ink-500">Estamos dando los últimos toques de diseño con IA.</p>
+        <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-ink-100">
+          <div
+            className="h-full rounded-full bg-amber-500 transition-all duration-200 ease-out"
+            style={{ width: `${Math.min(publishProgress, 100)}%` }}
+          />
+        </div>
       </div>
     );
   }

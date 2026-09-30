@@ -23,7 +23,12 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
     );
   }, [query, users]);
 
-  function toggleBlocked(userId: string, blocked: boolean) {
+  function toggleBlocked(userId: string, blocked: boolean, name: string) {
+    const warning = blocked
+      ? `¿Bloquear a ${name}? No podrá volver a entrar en su cuenta hasta que lo desbloquees.`
+      : `¿Desbloquear a ${name}?`;
+    if (!confirm(warning)) return;
+
     startTransition(async () => {
       await setUserBlocked(userId, blocked);
       router.refresh();
@@ -77,7 +82,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                     size="sm"
                     variant="ghost"
                     disabled={pending}
-                    onClick={() => toggleBlocked(u.id, !u.isBlocked)}
+                    onClick={() => toggleBlocked(u.id, !u.isBlocked, u.fullName ?? u.email ?? "este usuario")}
                   >
                     {u.isBlocked ? "Desbloquear" : "Bloquear"}
                   </Button>

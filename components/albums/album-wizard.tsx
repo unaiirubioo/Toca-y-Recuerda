@@ -81,6 +81,7 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
+  const [finalizeProgress, setFinalizeProgress] = useState(0);
   const router = useRouter();
 
   const totalSteps = STEP_TITLES.length;
@@ -144,16 +145,38 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
   function handleFinish() {
     if (!albumId) return;
     setError(null);
+    setFinalizing(true);
+    setFinalizeProgress(6);
+
+    // Misma barra de progreso "de verdad" que en la edición (spec
+    // #10): sube sola hasta el 90% en ~3 segundos y se completa al
+    // recibir la respuesta real del servidor.
+    const tick = setInterval(() => {
+      setFinalizeProgress((p) => (p >= 90 ? p : p + Math.random() * 10 + 4));
+    }, 220);
+
     startTransition(async () => {
-      await updateAlbum(albumId, form);
-      setFinalizing(true);
-      const result = await finalizeAlbumWithAi(albumId);
-      if ("error" in result && result.error) {
+      try {
+        await updateAlbum(albumId, form);
+        const result = await finalizeAlbumWithAi(albumId);
+        if ("error" in result && result.error) {
+          setError(result.error);
+          return;
+        }
+        setFinalizeProgress(100);
+        await new Promise((r) => setTimeout(r, 300));
+        router.push(`/albumes/${albumId}/editar?creando=1`);
+      } catch (err) {
+        // Antes, cualquier fallo inesperado aquí dejaba la pantalla
+        // "Nuestra IA está diseñando tu álbum…" congelada para siempre,
+        // sin ninguna forma de salir (spec: "se queda pillado").
+        console.error("handleFinish:", err);
+        setError("Algo ha fallado al crear el álbum. Inténtalo otra vez.");
+      } finally {
+        clearInterval(tick);
         setFinalizing(false);
-        setError(result.error);
-        return;
+        setFinalizeProgress(0);
       }
-      router.push(`/albumes/${albumId}/editar?creando=1`);
     });
   }
 
@@ -175,14 +198,20 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
 
   if (finalizing) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
         <div className="mb-5 flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-amber-500/15 text-amber-600">
           <Sparkles className="h-8 w-8" />
         </div>
         <h1 className="mb-2 font-display text-xl font-semibold text-ink-900">
           Nuestra IA está diseñando tu álbum…
         </h1>
-        <p className="text-sm text-ink-500">Esto tarda solo unos segundos.</p>
+        <p className="mb-5 text-sm text-ink-500">Esto tarda solo unos segundos.</p>
+        <div className="h-2 w-full max-w-xs overflow-hidden rounded-full bg-ink-100">
+          <div
+            className="h-full rounded-full bg-amber-500 transition-all duration-200 ease-out"
+            style={{ width: `${Math.min(finalizeProgress, 100)}%` }}
+          />
+        </div>
       </div>
     );
   }

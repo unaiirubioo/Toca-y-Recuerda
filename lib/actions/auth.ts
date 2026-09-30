@@ -242,9 +242,52 @@ export async function resendVerificationEmail(): Promise<ActionResult> {
     email,
     options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
   });
-  if (error) return { error: "No hemos podido reenviar el correo. Inténtalo de nuevo en un momento." };
+
+  if (error) {
+    // Antes se tragaba el motivo real y siempre mostraba el mismo
+    // mensaje genérico — así nunca se sabía si era un límite de
+    // Supabase, el correo ya verificado, o un fallo de verdad.
+    console.error("resendVerificationEmail:", error.status, error.message);
+
+    if (error.message.toLowerCase().includes("already confirmed")) {
+      return { error: "Ese correo ya está verificado — prueba a iniciar sesión directamente." };
+    }
+    if (error.status === 429 || error.message.toLowerCase().includes("rate limit")) {
+      return { error: "Supabase ha limitado el envío de correos por ahora. Espera un minuto y vuelve a intentarlo." };
+    }
+    return { error: `No hemos podido reenviar el correo (${error.message}).` };
+  }
 
   return {};
+}
+
+export type CompleteSessionResult = { error: string } | { ok: true; nfc: string | null };
+
+/**
+ * Completa el inicio de sesión a partir de los tokens que llegaron en
+ * el fragmento de la URL (`#access_token=...`) cuando Supabase usa el
+ * flujo "implícito" para el enlace de verificación (spec #3). Un
+ * componente cliente lee ese fragmento —invisible para el servidor— y
+ * llama aquí; como esto es un Server Action, sí puede escribir la
+ * cookie de sesión (una página normal no podría).
+ */
+export async function completeSessionFromTokens(
+  accessToken: string,
+  refreshToken: string
+): Promise<CompleteSessionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+  if (error) {
+    console.error("completeSessionFromTokens:", error.message);
+    return { error: "Ese enlace ya no es válido. Pide que te reenvíen el correo." };
+  }
+
+  const cookieStore = await cookies();
+  const nfc = cookieStore.get(PENDING_NFC_COOKIE)?.value ?? null;
+  cookieStore.delete(PENDING_VERIFY_EMAIL_COOKIE);
+  cookieStore.delete(PENDING_VERIFY_UID_COOKIE);
+
+  return { ok: true, nfc };
 }
 
 export async function updateMyName(formData: FormData): Promise<ActionResult> {

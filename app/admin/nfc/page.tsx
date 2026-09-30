@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   assigned: "Asignados",
   active: "Activos",
   disabled: "Deshabilitados",
+  self_generated: "Autogenerados (gratis)",
 };
 
 export default async function AdminNfcPage() {

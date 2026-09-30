@@ -31,7 +31,15 @@ export async function listNfcTags(): Promise<NfcRow[]> {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (error || !data) return [];
+  // Antes esto se tragaba el error en silencio y devolvía la lista
+  // vacía sin más — si falta la migración 0006 (columna
+  // self_generated), la consulta entera fallaba y el panel parecía
+  // "no tener ningún NFC", incluidos los del stock físico de siempre.
+  if (error) {
+    console.error("listNfcTags:", error.message);
+    return [];
+  }
+  if (!data) return [];
 
   return (data as any[]).map((row) => ({
     id: row.id,
@@ -50,10 +58,16 @@ export async function listNfcTags(): Promise<NfcRow[]> {
 export async function getNfcInventoryCounts(): Promise<Record<string, number>> {
   await requireAdmin();
   const supabase = await createClient();
-  const { data } = await supabase.from("nfc_tags").select("status");
+  const { data, error } = await supabase.from("nfc_tags").select("status, self_generated");
+  if (error) console.error("getNfcInventoryCounts:", error.message);
+
   const counts: Record<string, number> = {};
   for (const row of (data as any[]) ?? []) {
-    counts[row.status] = (counts[row.status] ?? 0) + 1;
+    // Los autogenerados por el propio usuario son gratis (spec: no
+    // cuentan como "vendidos" — antes se metían en el mismo cubo que
+    // una venta real de Stripe, dando una cifra de ventas falsa).
+    const key = row.self_generated ? "self_generated" : row.status;
+    counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
 }

@@ -68,7 +68,9 @@ export function NfcAssociationStep({ onResolved }: { onResolved: (token: string 
     return (
       <div className="space-y-3">
         <p className="text-sm text-ink-500">
-          Escanea o escribe el código de tu NFC (lo encontrarás en la URL que se abre al acercar el móvil).
+          Lo ideal es que <strong>acerques ahora el móvil a tu NFC físico</strong>: se abrirá una página
+          nueva que te llevará directamente a crear el álbum ya asociado a él. Si no puedes escanearlo
+          ahora mismo (por ejemplo, estás en el ordenador), escribe aquí el código que viene en la etiqueta:
         </p>
         <Input
           placeholder="Código del NFC"
@@ -101,8 +103,8 @@ export function NfcAssociationStep({ onResolved }: { onResolved: (token: string 
       >
         <ScanLine className="h-5 w-5 flex-shrink-0 text-amber-600" />
         <span>
-          <span className="block text-sm font-medium text-ink-900">Ya tengo un NFC</span>
-          <span className="block text-xs text-ink-500">Comprado o generado antes, todavía sin usar.</span>
+          <span className="block text-sm font-medium text-ink-900">Ya tengo un NFC comprado</span>
+          <span className="block text-xs text-ink-500">Te diremos cómo escanearlo para asociarlo.</span>
         </span>
       </button>
       <button
@@ -114,9 +116,11 @@ export function NfcAssociationStep({ onResolved }: { onResolved: (token: string 
         <Sparkles className="h-5 w-5 flex-shrink-0 text-amber-600" />
         <span>
           <span className="block text-sm font-medium text-ink-900">
-            {pending ? "Generando…" : "Quiero crear mi propio NFC"}
+            {pending ? "Generando…" : "Tengo mi propia etiqueta NFC en blanco"}
           </span>
-          <span className="block text-xs text-ink-500">Para configurarlo tú mismo en una etiqueta que ya tengas.</span>
+          <span className="block text-xs text-ink-500">
+            Te damos un código para que lo grabes tú mismo (por ejemplo con la app "NFC Tools").
+          </span>
         </span>
       </button>
       <button

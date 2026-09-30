@@ -2,6 +2,7 @@ import dynamic from "next/dynamic";
 import { MapPin } from "lucide-react";
 import type { PublicAlbum } from "@/lib/queries/public-album";
 import { ViewerGallery } from "@/components/album-viewer/viewer-gallery";
+import { buildAiCoverImageUrl } from "@/lib/ai/cover-image";
 
 const AlbumMap = dynamic(() => import("@/components/album-viewer/album-map").then((m) => m.AlbumMap), {
   ssr: false,
@@ -20,16 +21,24 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
   const dateText = formatDateRange(album.eventDateStart, album.eventDateEnd);
   const hasMap = album.locationLat != null && album.locationLng != null;
 
+  // Portada con IA real y gratuita (spec #11): solo se usa cuando no
+  // hay una foto de portada propia ya resuelta — nunca sustituye a un
+  // recuerdo real, solo evita el degradado gris genérico de antes.
+  const heroImageUrl =
+    album.coverUrl ||
+    buildAiCoverImageUrl({
+      albumId: album.id,
+      title: album.title,
+      theme: album.designTheme,
+      locationName: album.locationName,
+    });
+
   return (
     <main className="min-h-screen bg-cream-100">
       {/* Portada grande */}
       <div className="relative flex h-[60vh] min-h-[360px] items-end justify-center overflow-hidden bg-ink-900">
-        {album.coverUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={album.coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-ink-700 to-ink-900" />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         <div className="relative z-10 px-6 pb-10 text-center text-white">
           <h1 className="font-display text-3xl font-semibold sm:text-4xl">{album.title}</h1>

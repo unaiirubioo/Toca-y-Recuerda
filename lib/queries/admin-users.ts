@@ -62,11 +62,18 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   if (!profile) return null;
   const p = profile as any;
 
-  const [{ data: authUser }, { data: albums }, { data: orders }] = await Promise.all([
+  const [{ data: authUser }, { data: albums }, ordersRes] = await Promise.all([
     admin.auth.admin.getUserById(userId),
     admin.from("albums").select("id, title, status, is_premium").eq("owner_id", userId),
     admin.from("orders").select("id, total_cents, status, created_at, is_gift").eq("user_id", userId),
   ]);
+
+  // Si falta la migración 0007 (columna is_gift), esta consulta falla
+  // y antes se tragaba el error en silencio, dejando ver "0 pedidos"
+  // sin ninguna pista de por qué. Ahora al menos queda en los logs de
+  // Vercel/Supabase para poder diagnosticarlo.
+  if (ordersRes.error) console.error("getUserDetail: fallo al leer pedidos —", ordersRes.error.message);
+  const orders = ordersRes.data;
 
   return {
     id: p.id,

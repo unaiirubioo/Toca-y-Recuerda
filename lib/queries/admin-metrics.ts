@@ -22,6 +22,10 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
     admin.from("nfc_tags").select("status"),
   ]);
 
+  // Si esto muestra 0/0 de forma persistente aun teniendo álbumes de
+  // verdad, el error real queda aquí en los logs — antes se perdía en
+  // silencio y parecía simplemente "un dato mal calculado".
+  if (albumsRes.error) console.error("getAdminMetrics: fallo al leer albums —", albumsRes.error.message);
   const albums = (albumsRes.data as any[]) ?? [];
   const freeAlbums = albums.filter((a) => !a.is_premium).length;
   const premiumAlbums = albums.filter((a) => a.is_premium).length;

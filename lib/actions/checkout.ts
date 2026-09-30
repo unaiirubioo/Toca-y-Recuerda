@@ -79,7 +79,19 @@ export async function createCheckoutSession(cart: CheckoutInput): Promise<Checko
     }))
   );
 
-  const stripe = getStripe();
+  let stripe;
+  try {
+    stripe = getStripe();
+  } catch (err) {
+    // Antes esto se lanzaba FUERA del try/catch de más abajo: si
+    // faltaba la clave de Stripe, la excepción se escapaba sin
+    // limpiar el pedido "pending" ni avisar al usuario — y en el
+    // navegador el botón "Pagar" se quedaba cargando para siempre
+    // (spec: "se queda pensando y no avanza").
+    console.error("createCheckoutSession: Stripe no configurado:", err);
+    await admin.from("orders").delete().eq("id", orderId);
+    return { error: "El pago no está disponible ahora mismo. Inténtalo más tarde." };
+  }
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   try {
@@ -112,8 +124,9 @@ export async function createCheckoutSession(cart: CheckoutInput): Promise<Checko
 
     if (!session.url) return { error: "No hemos podido abrir la pasarela de pago." };
     return { url: session.url };
-  } catch {
+  } catch (err) {
     // Si Stripe falla, no dejamos un pedido "pending" huérfano rondando.
+    console.error("createCheckoutSession: fallo al crear la sesión de Stripe:", err);
     await admin.from("orders").delete().eq("id", orderId);
     return { error: "No hemos podido conectar con Stripe. Inténtalo otra vez." };
   }

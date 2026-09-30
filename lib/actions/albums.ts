@@ -130,11 +130,18 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
     };
   } else {
     const freePlan = await getFreePlanLimits();
+    // Cuenta solo álbumes gratuitos "reales" (spec: nunca dejar que un
+    // borrador vacío y abandonado, de una versión anterior, bloquee
+    // para siempre el único álbum gratis de alguien). El bloque de
+    // arriba ya reutiliza el borrador más reciente si existe; esto es
+    // una segunda red de seguridad por si hay varios borradores viejos
+    // sueltos de antes de ese arreglo.
     const { count: freeAlbumCount } = await admin
       .from("albums")
       .select("id", { count: "exact", head: true })
       .eq("owner_id", userId)
-      .eq("is_premium", false);
+      .eq("is_premium", false)
+      .or("status.eq.published,photo_count.gt.0,video_count.gt.0");
 
     const eligibility = computeAlbumEligibility({
       freeAlbumCount: freeAlbumCount ?? 0,

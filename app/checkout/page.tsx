@@ -16,13 +16,20 @@ export default function CheckoutPage() {
   async function handlePay() {
     setError(null);
     setLoading(true);
-    const result = await createCheckoutSession(items.map((i) => ({ productId: i.productId, quantity: i.quantity })));
-    if ("error" in result) {
-      setError(result.error);
+    try {
+      const result = await createCheckoutSession(items.map((i) => ({ productId: i.productId, quantity: i.quantity })));
+      if ("error" in result) {
+        setError(result.error);
+        setLoading(false);
+        return;
+      }
+      window.location.href = result.url;
+    } catch {
+      // Red de seguridad: cualquier fallo inesperado del servidor no
+      // debe dejar el botón "cargando" para siempre (spec #13).
+      setError("Algo ha fallado al conectar con el pago. Inténtalo otra vez.");
       setLoading(false);
-      return;
     }
-    window.location.href = result.url;
   }
 
   if (items.length === 0) {
@@ -61,7 +68,7 @@ export default function CheckoutPage() {
         {error && <p className="mt-4 text-sm text-danger">{error}</p>}
 
         <Button className="mt-6 w-full" size="lg" onClick={handlePay} disabled={loading}>
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />} Pagar con Stripe
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />} {loading ? "Conectando con el pago…" : "Pagar"}
         </Button>
         <p className="mt-2 text-center text-xs text-ink-500">
           Tarjeta, Bizum, Apple Pay o Google Pay — sin guardar tus datos de pago en nuestros servidores.

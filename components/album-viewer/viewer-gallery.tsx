@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,8 +60,17 @@ function Lightbox({
   // es solo para satisfacer al compilador de forma segura.
   if (!item) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+  // Se monta con un portal directamente en <body> (spec #12: antes el
+  // lightbox se quedaba "atrapado" dentro de la tarjeta del álbum en
+  // vez de cubrir toda la pantalla — típico efecto de CSS cuando un
+  // antepasado tiene una transformación aplicada, que convierte
+  // `position: fixed` en relativo a ESE antepasado en lugar de a la
+  // ventana. Renderizarlo en <body> evita el problema de raíz, venga
+  // de donde venga esa transformación).
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/90 p-4">
       <button
         type="button"
         onClick={onClose}
@@ -105,6 +115,7 @@ function Lightbox({
           <video src={item.url} controls autoPlay className="max-h-[85vh] max-w-full rounded-lg" />
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

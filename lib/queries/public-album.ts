@@ -20,6 +20,7 @@ export type PublicAlbum = {
   coverUrl: string | null;
   media: { id: string; type: "photo" | "video"; url: string; thumbnailUrl: string }[];
   memories: string[];
+  renewalDueAt: string | null;
 };
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 6; // 6 horas: dura una visita larga sin regenerarse
@@ -47,7 +48,7 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
   const { data: album } = await admin
     .from("albums")
     .select(
-      "id, title, description, status, privacy, privacy_password_hash, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_layout, music_url, music_title, cover_media_id"
+      "id, title, description, status, privacy, privacy_password_hash, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_layout, music_url, music_title, cover_media_id, renewal_due_at"
     )
     .eq("id", albumId)
     .maybeSingle();
@@ -90,6 +91,7 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
     status: a.status,
     privacy: a.privacy,
     privacyPasswordHash: a.privacy_password_hash,
+    renewalDueAt: a.renewal_due_at,
     eventDateStart: a.event_date_start,
     eventDateEnd: a.event_date_end,
     locationName: a.location_name,

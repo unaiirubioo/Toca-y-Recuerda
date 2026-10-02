@@ -11,6 +11,11 @@ export async function createClient() {
     supabaseUrl,
     anonKey,
     {
+      // Mismo motivo que en lib/supabase/admin.ts: evita que Next.js
+      // cachee las peticiones de Supabase y sirva datos desactualizados.
+      global: {
+        fetch: (url, options) => fetch(url, { ...options, cache: "no-store" }),
+      },
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value;

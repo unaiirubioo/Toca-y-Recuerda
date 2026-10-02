@@ -29,3 +29,20 @@ a {
 .focus-ring {
   @apply outline-none ring-2 ring-ink-500 ring-offset-2 ring-offset-cream-100;
 }
+
+/* Widget de traducción automática (spec #20): oculta la barra superior
+   que añade Google por defecto y evita que empuje el contenido hacia
+   abajo — dejamos solo el selector flotante que creamos nosotros. */
+.goog-te-banner-frame.skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+.goog-te-gadget {
+  font-size: 0 !important;
+}
+.goog-te-gadget .goog-te-combo {
+  font-size: 12px !important;
+  margin: 0 !important;
+}

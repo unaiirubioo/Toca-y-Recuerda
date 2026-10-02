@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { chooseAiDesign } from "@/lib/ai/design-heuristic";
+import { computeRenewalDueDate } from "@/lib/business/renewal";
 
 /**
  * Genera una frase breve para el álbum con un modelo de IA real,
@@ -9,11 +10,13 @@ import { chooseAiDesign } from "@/lib/ai/design-heuristic";
  * servicio no responde a tiempo o falla, se ignora sin más — nunca
  * debe bloquear la creación del álbum por depender de un tercero.
  */
-async function generateAiBlurb(title: string, locationName: string | null): Promise<string | null> {
+async function generateAiBlurb(title: string, locationName: string | null, memoryHint: string | null): Promise<string | null> {
   const where = locationName ? ` en ${locationName}` : "";
+  const context = memoryHint ? ` El momento que cuenta: "${memoryHint.slice(0, 300)}".` : "";
   const prompt =
-    `Escribe una única frase breve, cálida y poética (máximo 22 palabras, en español) ` +
-    `para presentar un álbum de recuerdos titulado "${title}"${where}. ` +
+    `Escribe una única frase breve, cálida y emotiva (máximo 22 palabras, en español de España) ` +
+    `que resuma con cariño un álbum de recuerdos titulado "${title}"${where}.${context} ` +
+    `Que suene como algo escrito a mano por alguien que quiere a quien lo lea, no como una descripción. ` +
     `Responde solo con la frase, sin comillas ni explicaciones.`;
 
   try {
@@ -39,11 +42,14 @@ async function generateAiBlurb(title: string, locationName: string | null): Prom
 export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: string } | { ok: true }> {
   const supabase = await createClient();
 
-  const { data: album } = await supabase
-    .from("albums")
-    .select("title, location_name, photo_count, video_count, music_url")
-    .eq("id", albumId)
-    .single();
+  const [{ data: album }, { data: memoryRows }] = await Promise.all([
+    supabase
+      .from("albums")
+      .select("title, location_name, photo_count, video_count, music_url, renewal_due_at")
+      .eq("id", albumId)
+      .single(),
+    supabase.from("album_memories").select("content").eq("album_id", albumId).limit(1),
+  ]);
 
   if (!album) return { error: "No hemos encontrado el álbum." };
   const a = album as any;
@@ -64,7 +70,13 @@ export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: str
     photoCount: a.photo_count,
   });
 
-  const blurb = await generateAiBlurb(a.title, a.location_name);
+  const memoryHint = (memoryRows as any[])?.[0]?.content ?? null;
+  const blurb = await generateAiBlurb(a.title, a.location_name, memoryHint);
+
+  // Conservación de archivos cada 5 años (spec #10): se fija la
+  // primera vez que se publica, nunca se pisa si ya existe (por
+  // ejemplo, al volver a guardar cambios en un álbum ya publicado).
+  const renewalDueAt = a.renewal_due_at ?? computeRenewalDueDate(new Date()).toISOString();
 
   const { error } = await supabase
     .from("albums")
@@ -73,6 +85,7 @@ export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: str
       design_layout: design.layout,
       ...(blurb ? { description: blurb } : {}),
       status: "published",
+      renewal_due_at: renewalDueAt,
     })
     .eq("id", albumId);
 

@@ -66,27 +66,55 @@ export function NfcAssociationStep({ onResolved }: { onResolved: (token: string 
 
   if (mode === "type-code") {
     return (
-      <div className="space-y-3">
-        <p className="text-sm text-ink-500">
-          Lo ideal es que <strong>acerques ahora el móvil a tu NFC físico</strong>: se abrirá una página
-          nueva que te llevará directamente a crear el álbum ya asociado a él. Si no puedes escanearlo
-          ahora mismo (por ejemplo, estás en el ordenador), escribe aquí el código que viene en la etiqueta:
-        </p>
-        <Input
-          placeholder="Código del NFC"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          autoFocus
-        />
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <div className="flex gap-2">
-          <Button type="button" onClick={() => (code.trim() ? onResolved(code.trim()) : setError("Escribe el código."))}>
-            Continuar
-          </Button>
-          <Button type="button" variant="ghost" onClick={() => setMode("choose")}>
-            Atrás
-          </Button>
+      <div className="space-y-4">
+        <div className="rounded-xl bg-amber-500/10 p-4">
+          <p className="mb-3 text-sm font-medium text-ink-900">Así se asocia en 3 pasos:</p>
+          <ol className="space-y-2.5 text-sm text-ink-700">
+            <li className="flex gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white">
+                1
+              </span>
+              Desbloquea el móvil y activa el NFC si lo tiene desactivado (Ajustes → Conexión → NFC, en
+              la mayoría de Android; en iPhone 7 o más reciente ya viene activado).
+            </li>
+            <li className="flex gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white">
+                2
+              </span>
+              Acerca la parte trasera del móvil a la etiqueta NFC y espera un segundo sin moverlo — no
+              hace falta abrir ninguna app, el teléfono lo detecta solo.
+            </li>
+            <li className="flex gap-2.5">
+              <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white">
+                3
+              </span>
+              Se abrirá sola una página en el navegador. Si te pide crear cuenta, hazlo — al terminar
+              volverás aquí mismo, con el álbum ya asociado a ese NFC.
+            </li>
+          </ol>
         </div>
+
+        <details className="text-sm text-ink-500">
+          <summary className="cursor-pointer select-none font-medium text-ink-700">
+            No puedo escanearlo ahora (estoy en el ordenador)
+          </summary>
+          <div className="mt-3 space-y-3">
+            <p>Escribe el código que viene impreso o grabado en la etiqueta:</p>
+            <Input placeholder="Código del NFC" value={code} onChange={(e) => setCode(e.target.value)} />
+            {error && <p className="text-sm text-danger">{error}</p>}
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => (code.trim() ? onResolved(code.trim()) : setError("Escribe el código."))}
+            >
+              Continuar con ese código
+            </Button>
+          </div>
+        </details>
+
+        <Button type="button" variant="ghost" onClick={() => setMode("choose")}>
+          Atrás
+        </Button>
       </div>
     );
   }

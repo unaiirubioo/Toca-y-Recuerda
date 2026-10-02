@@ -3,6 +3,7 @@ import { getStripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { shouldSkipOrderFulfillment } from "@/lib/business/order-idempotency";
 import { fulfillPaidOrder } from "@/lib/fulfillment/fulfill-order";
+import { computeRenewalDueDate } from "@/lib/business/renewal";
 
 // Los webhooks de Stripe llegan sin sesión de usuario, así que esta
 // ruta usa siempre el cliente admin (service_role) — es el único sitio
@@ -57,7 +58,7 @@ async function handleCheckoutCompleted(session: import("stripe").Stripe.Checkout
 
   const { data: order } = await admin
     .from("orders")
-    .select("id, user_id, status")
+    .select("id, user_id, status, renewal_album_id")
     .eq("id", orderId)
     .maybeSingle();
   if (!order) return;
@@ -113,4 +114,17 @@ async function handleCheckoutCompleted(session: import("stripe").Stripe.Checkout
   // línea del pedido, según el producto, se crean créditos de álbum y/o
   // se reserva stock de NFC físico.
   await fulfillPaidOrder(admin, orderId, o.user_id);
+
+  // Pago de renovación (spec #10): este pedido no da créditos nuevos
+  // (el producto RENEWAL los tiene a 0 a propósito), solo alarga la
+  // fecha de conservación del álbum concreto que lo generó.
+  if (o.renewal_album_id) {
+    await admin
+      .from("albums")
+      .update({
+        renewal_due_at: computeRenewalDueDate(new Date()).toISOString(),
+        renewal_reminder_sent_at: null,
+      })
+      .eq("id", o.renewal_album_id);
+  }
 }

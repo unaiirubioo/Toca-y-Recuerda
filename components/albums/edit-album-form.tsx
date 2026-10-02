@@ -137,7 +137,9 @@ export function EditAlbumForm({
         }
         setPublishProgress(100);
         await new Promise((r) => setTimeout(r, 300));
-        router.refresh();
+        // Spec #12: al terminar la barra de progreso, abrir el álbum ya
+        // publicado directamente en vez de quedarse en la edición.
+        router.push(`/album/${album.public_slug}`);
       } catch (err) {
         // Antes, cualquier fallo inesperado aquí dejaba la pantalla de
         // "creando con mucho cariño" congelada para siempre, sin forma

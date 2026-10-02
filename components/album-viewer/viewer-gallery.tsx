@@ -1,36 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { assignCollageSpans, type CollageSpan } from "@/lib/business/smart-collage";
 
 type Item = { id: string; type: "photo" | "video"; url: string; thumbnailUrl: string };
 
 export function ViewerGallery({ items }: { items: Item[] }) {
   const [index, setIndex] = useState<number | null>(null);
+  const [spans, setSpans] = useState<CollageSpan[] | null>(null);
+
+  // Collage organizado con IA "de forma": no analiza el contenido de
+  // las fotos (eso necesitaría una IA con visión, con coste), pero sí
+  // mide la forma real de cada imagen — panorámica, vertical o
+  // cuadrada — para maquetarlas con ritmo, como haría alguien a mano
+  // con un álbum de papel, en vez de una cuadrícula uniforme y plana.
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all(
+      items.map(
+        (item) =>
+          new Promise<number | null>((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve(img.naturalWidth / img.naturalHeight);
+            img.onerror = () => resolve(null);
+            img.src = item.thumbnailUrl;
+          })
+      )
+    ).then((ratios) => {
+      if (!cancelled) setSpans(assignCollageSpans(ratios));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   if (items.length === 0) return null;
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((item, i) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setIndex(i)}
-            className="relative aspect-square overflow-hidden rounded-xl bg-ink-50 focus-ring"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-            {item.type === "video" && (
-              <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-xl text-white">
-                ▶
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="grid auto-rows-[110px] grid-cols-2 gap-2 sm:grid-cols-3 sm:auto-rows-[140px] lg:grid-cols-4 lg:auto-rows-[160px]">
+        {items.map((item, i) => {
+          const span = spans?.[i];
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setIndex(i)}
+              className={cn(
+                "relative overflow-hidden rounded-xl bg-ink-50 transition-all focus-ring",
+                span?.colSpan === 2 && "col-span-2",
+                span?.rowSpan === 2 && "row-span-2"
+              )}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+              {item.type === "video" && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-xl text-white">
+                  ▶
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {index !== null && (

@@ -36,7 +36,7 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
   return (
     <main className="min-h-screen bg-cream-100">
       {/* Portada grande */}
-      <div className="relative flex h-[60vh] min-h-[360px] items-end justify-center overflow-hidden bg-ink-900">
+      <div className="relative flex h-[38vh] min-h-[260px] items-end justify-center overflow-hidden bg-ink-900">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -52,6 +52,12 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
       </div>
 
       <div className="mx-auto max-w-3xl space-y-10 px-4 py-12">
+        {album.description && (
+          <p className="-mt-4 text-center font-display text-lg italic text-ink-700 sm:text-xl">
+            “{album.description}”
+          </p>
+        )}
+
         {album.media.length > 0 && (
           <section>
             <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Galería</h2>
@@ -75,14 +81,6 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
           </section>
         )}
 
-        {album.musicUrl && (
-          <section>
-            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">
-              {album.musicTitle || "Música"}
-            </h2>
-            <audio controls src={album.musicUrl} className="w-full" />
-          </section>
-        )}
       </div>
     </main>
   );

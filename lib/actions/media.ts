@@ -263,12 +263,23 @@ export async function deleteMedia(albumId: string, mediaId: string): Promise<voi
   revalidatePath(`/albumes/${albumId}/editar`);
 }
 
-export async function setCoverMedia(albumId: string, mediaId: string): Promise<void> {
+export async function setCoverMedia(albumId: string, mediaId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
   // cover_media_id no tiene el privilegio revocado (no es una palanca
   // de negocio, solo estética) — el cliente normal + RLS bastan.
-  await supabase.from("albums").update({ cover_media_id: mediaId }).eq("id", albumId);
+  //
+  // Antes esto no comprobaba el error: si fallaba (por ejemplo, por
+  // una condición de carrera con la foto recién subida), la portada se
+  // quedaba igual sin ningún aviso — parecía que "cambiar portada" no
+  // hacía nada (spec #11).
+  const { error } = await supabase.from("albums").update({ cover_media_id: mediaId }).eq("id", albumId);
+  if (error) {
+    console.error("setCoverMedia:", error.message);
+    return { error: "No hemos podido poner esa foto como portada. Inténtalo otra vez." };
+  }
   revalidatePath(`/albumes/${albumId}/editar`);
+  revalidatePath("/dashboard");
+  return {};
 }
 
 export async function reorderMedia(items: { id: string; sort_order: number }[]): Promise<void> {

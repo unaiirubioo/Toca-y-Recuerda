@@ -19,7 +19,7 @@ export function AlbumMap({ lat, lng }: { lat: number; lng: number }) {
         center={[lat, lng]}
         zoom={13}
         style={{ height: 280, width: "100%" }}
-        scrollWheelZoom={false}
+        scrollWheelZoom={true}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

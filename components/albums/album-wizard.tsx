@@ -139,6 +139,14 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
 
   function back() {
     setError(null);
+    // Desde el primer paso, "Atrás" vuelve a la pregunta de asociar NFC
+    // (spec #6: antes no había forma de volver a reconsiderarlo una vez
+    // pasado). Si llegaste con un NFC ya escaneado físicamente, no hay
+    // nada que reconsiderar, así que el botón se desactiva ese caso.
+    if (step === 0 && !nfcToken) {
+      setNfcResolved(false);
+      return;
+    }
     setStep((s) => Math.max(s - 1, 0));
   }
 
@@ -458,7 +466,7 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
       {error && <p className="mt-4 text-sm text-danger">{error}</p>}
 
       <div className="mt-8 flex justify-between">
-        <Button variant="ghost" onClick={back} disabled={step === 0 || pending}>
+        <Button variant="ghost" onClick={back} disabled={(step === 0 && !!nfcToken) || pending}>
           <ChevronLeft className="h-4 w-4" /> Atrás
         </Button>
         {isLast ? (

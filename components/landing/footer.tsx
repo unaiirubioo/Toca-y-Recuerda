@@ -27,6 +27,9 @@ export function LandingFooter() {
       <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-sm text-ink-500 sm:flex-row">
         <p>© {new Date().getFullYear()} Toca y Recuerda</p>
         <nav className="flex gap-4">
+          <Link href="/contacto" className="hover:text-ink-900">
+            Contacto
+          </Link>
           <Link href="/legal/privacidad" className="hover:text-ink-900">
             Privacidad
           </Link>

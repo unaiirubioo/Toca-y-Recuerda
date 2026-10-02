@@ -12,6 +12,9 @@ export async function Hero() {
   return (
     <section className="overflow-hidden px-4 pb-16 pt-12 sm:pt-20">
       <div className="mx-auto max-w-3xl text-center">
+        <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-success/15 px-4 py-1.5 text-sm font-semibold text-success">
+          🎁 Tu primer álbum es gratis, para siempre
+        </span>
         <h1 className="font-display text-4xl font-semibold leading-tight text-ink-900 sm:text-5xl">
           Convierte tus recuerdos en algo que puedas tocar.
         </h1>

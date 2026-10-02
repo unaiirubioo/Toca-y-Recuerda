@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import "@/styles/globals.css";
 import { CartProvider } from "@/lib/cart-context";
+import { AutoTranslate } from "@/components/layout/auto-translate";
 
 // Antes, "Inter" y "Fraunces" solo estaban referenciadas por nombre en
 // globals.css sin cargarse de verdad — el sitio caía silenciosamente
@@ -48,6 +49,7 @@ export default function RootLayout({
     <html lang="es" className={`${inter.variable} ${fraunces.variable}`}>
       <body>
         <CartProvider>{children}</CartProvider>
+        <AutoTranslate />
       </body>
     </html>
   );

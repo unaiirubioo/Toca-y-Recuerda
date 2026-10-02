@@ -23,6 +23,9 @@ export async function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-6 text-sm text-ink-700 lg:flex">
+          <Link href="/" className="font-medium hover:text-ink-900">
+            Inicio
+          </Link>
           <Link href="/#como-funciona" className="hover:text-ink-900">
             Cómo funciona
           </Link>
@@ -34,6 +37,9 @@ export async function SiteHeader() {
           </Link>
           <Link href="/preguntas-y-respuestas" className="hover:text-ink-900">
             Preguntas y respuestas
+          </Link>
+          <Link href="/contacto" className="hover:text-ink-900">
+            Contacto
           </Link>
         </nav>
 

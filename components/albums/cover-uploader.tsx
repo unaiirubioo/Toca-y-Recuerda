@@ -62,7 +62,11 @@ export function CoverUploader({
         return;
       }
 
-      await setCoverMedia(albumId, slot.mediaId);
+      const coverResult = await setCoverMedia(albumId, slot.mediaId);
+      if (coverResult.error) {
+        setError(coverResult.error);
+        return;
+      }
       router.refresh();
     } catch {
       setError("No hemos podido subir la portada. Inténtalo otra vez.");

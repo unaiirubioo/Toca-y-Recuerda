@@ -57,9 +57,23 @@ export async function middleware(request: NextRequest) {
 
     if (user && !publicPath) {
       const { data: profile } = await supabase.from("profiles").select("is_blocked").eq("id", user.id).maybeSingle();
+
       if ((profile as any)?.is_blocked) {
         await supabase.auth.signOut();
         return NextResponse.redirect(new URL("/cuenta-bloqueada", request.url));
+      }
+
+      // Bug reportado: tras borrar una cuenta a mano (DELETE directo en
+      // SQL Editor, en vez de "Delete user" desde el panel de Supabase),
+      // el access token sigue siendo válido como JWT hasta que caduca
+      // por su cuenta (hasta 1 hora) aunque la fila ya no exista — y
+      // eso rompía la creación de álbumes/NFC con errores de clave
+      // foránea, porque owner_id ya no apuntaba a nadie real. Si no
+      // existe el perfil, se cierra la sesión inmediatamente en la
+      // siguiente petición en vez de esperar a que caduque el token.
+      if (!profile) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/login", request.url));
       }
     }
   } catch (error) {

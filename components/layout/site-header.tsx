@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
+import { getAlbumAvailabilityStatus } from "@/lib/queries/albums";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { FreeAlbumBanner } from "@/components/layout/free-album-banner";
 
 /**
  * Cabecera usada en toda la plataforma (no solo en la landing), al
@@ -14,8 +16,21 @@ export async function SiteHeader() {
   const supabase = await createClient();
   const { data } = await supabase.auth.getUser();
 
+  // La barra del álbum gratis solo se muestra si de verdad le queda
+  // disponible (spec: que el aviso desaparezca solo en cuanto lo use,
+  // no seguir insistiendo después) — para quien no ha iniciado sesión
+  // siempre es verdad (todo el mundo tiene 1 gratis).
+  let showFreeBanner = true;
+  if (data.user) {
+    const availability = await getAlbumAvailabilityStatus(data.user.id);
+    showFreeBanner = availability.freeRemaining > 0;
+  }
+  const freeBannerCta = data.user ? "/albumes/nuevo" : "/registro";
+
   return (
-    <header className="sticky top-0 z-30 border-b border-ink-100/60 bg-cream-100/90 backdrop-blur">
+    <div className="sticky top-0 z-30">
+      {showFreeBanner && <FreeAlbumBanner ctaHref={freeBannerCta} />}
+      <header className="border-b border-ink-100/60 bg-cream-100/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="flex flex-shrink-0 items-center gap-2">
           <Image src="/logo.jpeg" alt="Toca y Recuerda" width={32} height={32} className="rounded-full" />
@@ -50,7 +65,7 @@ export async function SiteHeader() {
                 Mi cuenta
               </Link>
               <Link href="/dashboard" className={cn(buttonVariants({ size: "sm" }))}>
-                Mi panel
+                Mis recuerdos
               </Link>
             </>
           ) : (
@@ -65,6 +80,7 @@ export async function SiteHeader() {
           )}
         </div>
       </div>
-    </header>
+      </header>
+    </div>
   );
 }

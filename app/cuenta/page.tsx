@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { LogOut, Images } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAvailableCredits, getUserAlbums, getAlbumAvailabilityStatus } from "@/lib/queries/albums";
 import { getMyOrders } from "@/lib/queries/my-account";
@@ -59,17 +60,26 @@ export default async function MyAccountPage() {
       <main className="min-h-screen bg-cream-100 px-4 py-10">
       <div className="mx-auto max-w-2xl space-y-6">
 
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-display text-2xl font-semibold text-ink-900">Mi cuenta</h1>
-            <p className="text-sm text-ink-500">
-              {(profile as any)?.full_name ?? "Sin nombre"} · {userData.user.email}
-            </p>
-            <div className="mt-1">
-              <EditNameForm initialName={(profile as any)?.full_name ?? ""} />
+        <div className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-amber-500 font-display text-xl font-semibold text-white">
+              {((profile as any)?.full_name ?? userData.user.email ?? "?").charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="font-display text-xl font-semibold text-ink-900">
+                {(profile as any)?.full_name ?? "Sin nombre"}
+              </h1>
+              <p className="text-sm text-ink-500">{userData.user.email}</p>
+              <div className="mt-1">
+                <EditNameForm initialName={(profile as any)?.full_name ?? ""} />
+              </div>
             </div>
           </div>
-          <Link href="/dashboard" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+          <Link
+            href="/dashboard"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "flex-shrink-0")}
+          >
+            <Images className="h-4 w-4" />
             Ir a mis recuerdos
           </Link>
         </div>
@@ -136,8 +146,9 @@ export default async function MyAccountPage() {
 
         <MyNfcPanel initialTags={selfNfcTags} quota={selfNfcQuota} />
 
-        <form action={signOut}>
-          <Button type="submit" variant="outline">
+        <form action={signOut} className="pt-2 text-center">
+          <Button type="submit" variant="ghost" size="sm" className="text-ink-500">
+            <LogOut className="h-4 w-4" />
             Cerrar sesión
           </Button>
         </form>

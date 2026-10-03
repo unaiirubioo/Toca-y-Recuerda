@@ -8,8 +8,21 @@ import { Reviews } from "@/components/landing/reviews";
 import { NfcDemo } from "@/components/landing/nfc-demo";
 import { FinalCta, LandingFooter } from "@/components/landing/footer";
 import { CookieBanner } from "@/components/landing/cookie-banner";
+import { FreeAlbumWelcomeModal } from "@/components/landing/free-album-welcome-modal";
+import { createClient } from "@/lib/supabase/server";
+import { getAlbumAvailabilityStatus } from "@/lib/queries/albums";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getUser();
+
+  let eligible = true;
+  if (data.user) {
+    const availability = await getAlbumAvailabilityStatus(data.user.id);
+    eligible = availability.freeRemaining > 0;
+  }
+  const ctaHref = data.user ? "/albumes/nuevo" : "/registro";
+
   return (
     <>
       <SiteHeader />
@@ -25,6 +38,7 @@ export default function LandingPage() {
       </main>
       <LandingFooter />
       <CookieBanner />
+      <FreeAlbumWelcomeModal eligible={eligible} ctaHref={ctaHref} />
     </>
   );
 }

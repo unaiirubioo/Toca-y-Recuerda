@@ -30,6 +30,15 @@ function friendlyAuthError(message: string): string {
   if (message.includes("Email not confirmed")) {
     return "Todavía no has confirmado tu email. Revisa tu bandeja de entrada.";
   }
+  if (message.toLowerCase().includes("error sending confirmation email") || message.toLowerCase().includes("error sending") ) {
+    return "Tu cuenta se ha podido crear pero no hemos podido enviarte el correo de verificación. Es un problema de configuración del envío de correo (Resend/SMTP) — contacta con soporte o pide que te reenvíen el correo.";
+  }
+  if (message.toLowerCase().includes("rate limit")) {
+    return "Se han hecho demasiados intentos de registro seguidos. Espera unos minutos y vuelve a intentarlo.";
+  }
+  if (message.toLowerCase().includes("database error saving new user") || message.toLowerCase().includes("database error")) {
+    return "No hemos podido crear tu perfil en la base de datos. Comprueba que todas las migraciones estén aplicadas.";
+  }
   return "Ha ocurrido un problema. Inténtalo de nuevo en unos segundos.";
 }
 
@@ -60,7 +69,14 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
     },
   });
 
-  if (error) return { error: friendlyAuthError(error.message) };
+  if (error) {
+    // Antes esto se tragaba el motivo real del fallo y siempre mostraba
+    // el mismo mensaje genérico. Lo dejamos en el log del servidor
+    // (visible en Vercel -> Deployments -> Functions/Logs) para poder
+    // diagnosticar sin tener que adivinar.
+    console.error("signUp error:", error.status, error.message);
+    return { error: friendlyAuthError(error.message) };
+  }
 
   const cookieStore = await cookies();
 

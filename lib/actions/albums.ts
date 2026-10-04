@@ -21,8 +21,23 @@ export type ActionResult = { error: string } | { error?: undefined; albumId?: st
 async function peekEligibility(userId: string) {
   const supabase = await createClient();
 
+  // OJO: este conteo tiene que ser EXACTAMENTE el mismo filtro que el
+  // de la comprobación real en createAlbum (más abajo) y el de
+  // getAlbumAvailabilityStatus. Antes este "peek" contaba CUALQUIER
+  // álbum no premium (incluidos borradores vacíos abandonados), más
+  // estricto que la comprobación real — así que a veces esta pantalla
+  // ya rechazaba a alguien que createAlbum sí habría dejado pasar (o,
+  // dependiendo del caché de la página, el usuario llegaba a ver el
+  // asistente y luego chocaba con el límite real al confirmar). Un
+  // álbum solo cuenta como "usado" si está publicado o ya tiene fotos
+  // o vídeos — nunca un borrador vacío.
   const [{ count: freeAlbumCount }, { count: creditCount }, freePlan] = await Promise.all([
-    supabase.from("albums").select("id", { count: "exact", head: true }).eq("owner_id", userId).eq("is_premium", false),
+    supabase
+      .from("albums")
+      .select("id", { count: "exact", head: true })
+      .eq("owner_id", userId)
+      .eq("is_premium", false)
+      .or("status.eq.published,photo_count.gt.0,video_count.gt.0"),
     supabase.from("album_credits").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("consumed", false),
     getFreePlanLimits(),
   ]);
@@ -149,7 +164,19 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
       freePlanMaxAlbums: freePlan.maxAlbums,
     });
 
-    if (!eligibility.canCreate) redirect("/albumes/limite");
+    if (!eligibility.canCreate) {
+      // Si esto salta para alguien que jura que es su primer álbum,
+      // este log dice la verdad: cuántos álbumes "cuentan" ve el
+      // servidor para ese usuario justo en este momento. Para
+      // comprobarlo a mano en Supabase -> SQL Editor:
+      //   select id, status, is_premium, photo_count, video_count, created_at
+      //   from albums where owner_id = '<uid>' order by created_at;
+      console.error(
+        "createAlbum: límite alcanzado",
+        JSON.stringify({ userId, freeAlbumCount, freePlanMaxAlbums: freePlan.maxAlbums })
+      );
+      redirect("/albumes/limite");
+    }
 
     limits = {
       photo_limit: freePlan.photoLimit,

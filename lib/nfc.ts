@@ -1,4 +1,5 @@
 import { customAlphabet } from "nanoid";
+import { getSiteUrl } from "@/lib/site-url";
 
 // Alfabeto sin caracteres ambiguos (0/O, 1/l/I) para que, si alguien
 // tuviera que leerlo o transcribirlo a mano, no haya confusiones.
@@ -15,6 +16,5 @@ export function generateNfcToken(): string {
 
 /** Construye la URL pública completa que se grabará físicamente en el NFC. */
 export function buildNfcUrl(publicToken: string): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tocayrecuerda.com";
-  return `${base}/n/${publicToken}`;
+  return `${getSiteUrl()}/n/${publicToken}`;
 }

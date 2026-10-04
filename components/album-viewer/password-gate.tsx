@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,13 +17,21 @@ export function PasswordGate({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const router = useRouter();
 
   function submit() {
     setError(null);
     startTransition(async () => {
       const result =
         mode === "slug" ? await unlockAlbumBySlug(identifier, password) : await unlockAlbumByToken(identifier, password);
-      if (result?.error) setError(result.error);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+      // Contraseña correcta: la cookie de acceso ya está guardada en el
+      // servidor. Refrescamos para que la página vuelva a renderizarse
+      // con el contenido real ahora que hasAlbumAccess() es true.
+      router.refresh();
     });
   }
 

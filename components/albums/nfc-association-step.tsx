@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { ScanLine, Sparkles, SkipForward } from "lucide-react";
+import { ScanLine, Sparkles, SkipForward, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { listMyUnassignedNfcForWizard } from "@/lib/actions/nfc-wizard";
 import { generateMySelfNfc } from "@/lib/actions/nfc-self";
 
 type OwnedTag = { id: string; publicToken: string; selfGenerated: boolean };
+type GeneratedTag = { token: string; url: string };
 
 export function NfcAssociationStep({ onResolved }: { onResolved: (token: string | null) => void }) {
-  const [mode, setMode] = useState<"choose" | "pick-owned" | "type-code">("choose");
+  const [mode, setMode] = useState<"choose" | "pick-owned" | "type-code" | "generated">("choose");
   const [owned, setOwned] = useState<OwnedTag[] | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [generated, setGenerated] = useState<GeneratedTag | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     listMyUnassignedNfcForWizard().then(setOwned);
@@ -36,8 +39,47 @@ export function NfcAssociationStep({ onResolved }: { onResolved: (token: string 
         setError(result.error);
         return;
       }
-      if ("token" in result) onResolved(result.token);
+      if ("token" in result) {
+        setGenerated({ token: result.token, url: result.url });
+        setMode("generated");
+      }
     });
+  }
+
+  function copyCode() {
+    if (!generated) return;
+    navigator.clipboard?.writeText(generated.token).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  if (mode === "generated" && generated) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-500/10 p-4">
+          <p className="mb-2 text-sm font-medium text-ink-900">¡Tu etiqueta NFC ya está creada!</p>
+          <p className="mb-3 text-xs text-ink-500">
+            Apunta este código — lo necesitarás para grabarlo en tu etiqueta física (por ejemplo con la
+            app "NFC Tools"). También podrás verlo más adelante en Mi cuenta.
+          </p>
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-ink-100 bg-white px-3 py-2.5">
+            <span className="break-all font-mono text-sm font-semibold text-ink-900">{generated.token}</span>
+            <button
+              type="button"
+              onClick={copyCode}
+              className="flex flex-shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-amber-700 hover:bg-amber-500/10"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+        </div>
+        <Button type="button" className="w-full" onClick={() => onResolved(generated.token)}>
+          Continuar
+        </Button>
+      </div>
+    );
   }
 
   if (mode === "pick-owned" && owned) {

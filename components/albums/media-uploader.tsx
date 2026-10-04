@@ -13,6 +13,7 @@ import {
 import { generateImageThumbnail, generateVideoThumbnail } from "@/lib/media-thumbnails";
 import { uploadToSignedUrl } from "@/lib/upload-to-signed-url";
 import { createUploadSlot, confirmMediaUpload } from "@/lib/actions/media";
+import { analyzeImageFile, analyzeVideoFile } from "@/lib/ai/client-vision";
 import { cn } from "@/lib/utils";
 
 type QueueStatus = "preparando" | "subiendo" | "procesando" | "listo" | "error";
@@ -48,6 +49,13 @@ export function MediaUploader({ albumId }: { albumId: string }) {
             ? await generateImageThumbnail(item.file)
             : await generateVideoThumbnail(item.file);
 
+        // Análisis gratis y sin límite en el propio navegador (spec: la
+        // IA debe detectar fechas, agrupar momentos, descartar borrosas
+        // y duplicadas) — nunca bloquea la subida si falla, solo se
+        // queda sin esos datos para este archivo en concreto.
+        const analysis =
+          item.kind === "photo" ? await analyzeImageFile(item.file) : await analyzeVideoFile(item.file);
+
         const slot = await createUploadSlot(albumId, {
           name: item.file.name,
           size: item.file.size,
@@ -76,6 +84,12 @@ export function MediaUploader({ albumId }: { albumId: string }) {
           width: "width" in thumb ? thumb.width : undefined,
           height: "height" in thumb ? thumb.height : undefined,
           durationSeconds: "duration" in thumb ? thumb.duration : undefined,
+          takenAt: analysis.takenAt ?? undefined,
+          lat: analysis.lat ?? undefined,
+          lng: analysis.lng ?? undefined,
+          phash: analysis.phash ?? undefined,
+          blurScore: analysis.blurScore ?? undefined,
+          tags: analysis.tags,
         });
 
         if ("error" in result) {

@@ -18,9 +18,18 @@ export type PublicAlbum = {
   musicUrl: string | null;
   musicTitle: string | null;
   coverUrl: string | null;
-  media: { id: string; type: "photo" | "video"; url: string; thumbnailUrl: string }[];
+  media: {
+    id: string;
+    type: "photo" | "video";
+    url: string;
+    thumbnailUrl: string;
+    caption: string | null;
+    isHighlight: boolean;
+    momentIndex: number | null;
+  }[];
   memories: string[];
   renewalDueAt: string | null;
+  aiStory: { intro: string; sections: { title: string; description: string; mediaIds: string[]; highlightMediaIds: string[] }[]; closing: string } | null;
 };
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60 * 6; // 6 horas: dura una visita larga sin regenerarse
@@ -48,7 +57,7 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
   const { data: album } = await admin
     .from("albums")
     .select(
-      "id, title, description, status, privacy, privacy_password_hash, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_layout, music_url, music_title, cover_media_id, renewal_due_at"
+      "id, title, description, status, privacy, privacy_password_hash, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_layout, music_url, music_title, cover_media_id, renewal_due_at, ai_story"
     )
     .eq("id", albumId)
     .maybeSingle();
@@ -59,7 +68,7 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
   const [{ data: mediaRows }, { data: memoryRows }] = await Promise.all([
     admin
       .from("album_media")
-      .select("id, type, storage_path, thumbnail_path")
+      .select("id, type, storage_path, thumbnail_path, caption, is_highlight, moment_index")
       .eq("album_id", albumId)
       .order("sort_order", { ascending: true }),
     admin.from("album_memories").select("content").eq("album_id", albumId).order("sort_order"),
@@ -79,6 +88,9 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
     type: r.type as "photo" | "video",
     url: urlByPath.get(r.storage_path) ?? "",
     thumbnailUrl: urlByPath.get(r.thumbnail_path) ?? urlByPath.get(r.storage_path) ?? "",
+    caption: r.caption ?? null,
+    isHighlight: !!r.is_highlight,
+    momentIndex: r.moment_index ?? null,
   }));
 
   const cover = rows.find((r) => r.id === a.cover_media_id);
@@ -104,5 +116,6 @@ export async function getPublicAlbum(albumId: string): Promise<PublicAlbum | nul
     coverUrl,
     media,
     memories: (memoryRows ?? []).map((m: any) => m.content as string),
+    aiStory: a.ai_story ?? null,
   };
 }

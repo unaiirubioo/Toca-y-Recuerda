@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { STORAGE_BUCKET } from "@/lib/storage";
 import { sendEmail } from "@/lib/email/resend";
 import { isWithinReminderWindow, isPastGracePeriod } from "@/lib/business/renewal";
+import { getSiteUrl } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
             <p>El plazo de conservación de 5 años de tu álbum <strong>${row.title}</strong> está a punto de terminar.</p>
             <p>Si no lo renuevas antes del ${dueAt.toLocaleDateString("es-ES")}, tendrás 30 días de margen
                y después se eliminará de forma permanente, con sus fotos y vídeos.</p>
-            <p><a href="${process.env.NEXT_PUBLIC_SITE_URL}/album/renovar/${row.id}">Renovarlo ahora</a></p>
+            <p><a href="${getSiteUrl()}/album/renovar/${row.id}">Renovarlo ahora</a></p>
             <p>— Toca y Recuerda</p>
           `,
         });

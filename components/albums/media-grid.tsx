@@ -28,6 +28,8 @@ export function MediaGrid({
 }) {
   const [items, setItems] = useState(media);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const router = useRouter();
 
   if (items.length === 0) {
@@ -45,6 +47,32 @@ export function MediaGrid({
     next[target] = a;
     setItems(next);
     reorderMedia(next.map((item, i) => ({ id: item.id, sort_order: i })));
+  }
+
+  /**
+   * Reordenar arrastrando y soltando (spec: "mover las fotos a gusto
+   * del cliente, que sea interactivo"). Las flechas ↑↓ se mantienen —
+   * son el único modo accesible desde el teclado y en pantallas
+   * táctiles pequeñas donde arrastrar es más difícil.
+   */
+  function handleDrop(targetId: string) {
+    setDragOverId(null);
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null);
+      return;
+    }
+    setItems((prev) => {
+      const fromIndex = prev.findIndex((i) => i.id === draggedId);
+      const toIndex = prev.findIndex((i) => i.id === targetId);
+      if (fromIndex === -1 || toIndex === -1) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      if (!moved) return prev;
+      next.splice(toIndex, 0, moved);
+      reorderMedia(next.map((item, i) => ({ id: item.id, sort_order: i })));
+      return next;
+    });
+    setDraggedId(null);
   }
 
   async function handleDelete(mediaId: string) {
@@ -68,11 +96,33 @@ export function MediaGrid({
 
   return (
     <>
+      <p className="mb-2 text-xs text-ink-500">
+        Arrastra una foto o vídeo para cambiar su orden, o usa las flechas al pasar el ratón.
+      </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item, index) => (
           <div
             key={item.id}
-            className="group relative aspect-square overflow-hidden rounded-xl border border-ink-100 bg-ink-50"
+            draggable
+            onDragStart={() => setDraggedId(item.id)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (dragOverId !== item.id) setDragOverId(item.id);
+            }}
+            onDragLeave={() => setDragOverId((prev) => (prev === item.id ? null : prev))}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDrop(item.id);
+            }}
+            onDragEnd={() => {
+              setDraggedId(null);
+              setDragOverId(null);
+            }}
+            className={cn(
+              "group relative aspect-square cursor-grab overflow-hidden rounded-xl border bg-ink-50 transition active:cursor-grabbing",
+              dragOverId === item.id && draggedId !== item.id ? "border-amber-500 ring-2 ring-amber-500/40" : "border-ink-100",
+              draggedId === item.id && "opacity-40"
+            )}
           >
             <button
               type="button"

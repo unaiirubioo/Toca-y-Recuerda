@@ -1,8 +1,13 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { chooseAiDesign } from "@/lib/ai/design-heuristic";
 import { computeRenewalDueDate } from "@/lib/business/renewal";
+import { buildMoments, type MediaForStory } from "@/lib/ai/story-builder";
+
+export type AiStorySection = { title: string; description: string; mediaIds: string[]; highlightMediaIds: string[] };
+export type AiStory = { intro: string; sections: AiStorySection[]; closing: string };
 
 /**
  * Genera una frase breve para el álbum con un modelo de IA real,
@@ -30,6 +35,139 @@ async function generateAiBlurb(title: string, locationName: string | null, memor
     return text;
   } catch {
     return null;
+  }
+}
+
+function formatMomentForPrompt(moment: ReturnType<typeof buildMoments>[number], index: number): string {
+  const when = moment.startsAt
+    ? new Date(moment.startsAt).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })
+    : "sin fecha";
+  const what = moment.tags.length > 0 ? moment.tags.join(", ") : "sin detalles concretos";
+  return `Momento ${index + 1}: ${moment.mediaIds.length} archivo(s), del ${when}. Contenido detectado: ${what}.`;
+}
+
+/**
+ * Construye una respuesta de reserva sin IA (siempre funciona, nunca
+ * depende de un tercero) para cuando pollinations no responda a
+ * tiempo o devuelva algo que no se pueda interpretar — el álbum nunca
+ * se queda sin historia por culpa de un servicio externo.
+ */
+function fallbackStory(moments: ReturnType<typeof buildMoments>, title: string): AiStory {
+  return {
+    intro: `Estos son los recuerdos de "${title}".`,
+    sections: moments.map((m, i) => ({
+      title: m.tags.length > 0 ? `Momento ${i + 1}: ${m.tags[0]}` : `Momento ${i + 1}`,
+      description: "",
+      mediaIds: m.mediaIds,
+      highlightMediaIds: m.highlightMediaIds,
+    })),
+    closing: "Gracias por revivir este recuerdo.",
+  };
+}
+
+/**
+ * Convierte las fotos/vídeos ya analizados en el navegador (fechas,
+ * etiquetas, nitidez — ver lib/ai/client-vision.ts) en una historia con
+ * introducción, secciones con título y descripción, y cierre. Solo se
+ * envían al modelo de texto ETIQUETAS Y FECHAS, nunca las fotos en sí
+ * (spec de privacidad) — y es el mismo servicio gratuito y sin clave
+ * que ya usa generateAiBlurb.
+ */
+async function generateStoryText(title: string, locationName: string | null, moments: ReturnType<typeof buildMoments>): Promise<AiStory> {
+  const fallback = fallbackStory(moments, title);
+  if (moments.length === 0) return fallback;
+
+  const where = locationName ? ` en ${locationName}` : "";
+  const momentsText = moments.map(formatMomentForPrompt).join("\n");
+  const prompt =
+    `Eres quien escribe el álbum de recuerdos "${title}"${where}. Te doy una lista de momentos detectados ` +
+    `automáticamente a partir de las fotos (fecha y qué aparece en ellas), en orden cronológico:\n${momentsText}\n\n` +
+    `Devuelve SOLO un JSON válido (sin markdown, sin explicaciones) con esta forma exacta:\n` +
+    `{"intro": "frase breve y cálida de apertura", "sections": [{"title": "título corto y natural para el momento 1", "description": "una frase breve sobre ese momento"}, ...], "closing": "frase breve de cierre"}\n` +
+    `Debe haber exactamente ${moments.length} elementos en "sections", en el mismo orden. Escribe en español de ` +
+    `España, con cariño, variando los títulos según el contenido real de cada momento — nunca repitas siempre ` +
+    `las mismas palabras ("Introducción", "Momento X") a menos que no haya más remedio.`;
+
+  try {
+    const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(prompt)}`, {
+      signal: AbortSignal.timeout(7000),
+    });
+    if (!res.ok) return fallback;
+
+    const raw = (await res.text()).trim();
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return fallback;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed || !Array.isArray(parsed.sections) || parsed.sections.length !== moments.length) return fallback;
+
+    return {
+      intro: typeof parsed.intro === "string" && parsed.intro.trim() ? parsed.intro.trim() : fallback.intro,
+      closing: typeof parsed.closing === "string" && parsed.closing.trim() ? parsed.closing.trim() : fallback.closing,
+      sections: moments.map((m, i) => ({
+        title:
+          typeof parsed.sections[i]?.title === "string" && parsed.sections[i].title.trim()
+            ? parsed.sections[i].title.trim()
+            : fallback.sections[i]!.title,
+        description: typeof parsed.sections[i]?.description === "string" ? parsed.sections[i].description.trim() : "",
+        mediaIds: m.mediaIds,
+        highlightMediaIds: m.highlightMediaIds,
+      })),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Agrupa las fotos/vídeos del álbum en momentos y genera su historia
+ * (spec: "que la IA convierta las fotos y vídeos en una historia de
+ * recuerdos, no una simple galería"). Se guarda en albums.ai_story y
+ * se marca qué archivos son "destacados" de cada momento — el resto
+ * sigue intacto en "Todos los recuerdos", nunca se borra ni se oculta.
+ * Si algo falla a medio camino, el álbum sigue publicándose igual, solo
+ * que sin historia (se puede volver a intentar luego).
+ */
+async function buildAndSaveStory(albumId: string, title: string, locationName: string | null): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data: mediaRows } = await admin
+      .from("album_media")
+      .select("id, type, taken_at, phash, blur_score, tags, caption, sort_order")
+      .eq("album_id", albumId)
+      .order("sort_order", { ascending: true });
+
+    const media: MediaForStory[] = ((mediaRows as any[]) ?? []).map((m) => ({
+      id: m.id,
+      type: m.type,
+      takenAt: m.taken_at,
+      phash: m.phash,
+      blurScore: m.blur_score,
+      tags: m.tags ?? [],
+      caption: m.caption,
+      sortOrder: m.sort_order,
+    }));
+    if (media.length === 0) return;
+
+    const moments = buildMoments(media);
+    const story = await generateStoryText(title, locationName, moments);
+
+    await admin.from("albums").update({ ai_story: story }).eq("id", albumId);
+
+    await Promise.all(
+      moments.flatMap((moment, index) =>
+        moment.mediaIds.map((mediaId) =>
+          admin
+            .from("album_media")
+            .update({ moment_index: index, is_highlight: moment.highlightMediaIds.includes(mediaId) })
+            .eq("id", mediaId)
+        )
+      )
+    );
+  } catch (err) {
+    console.error("buildAndSaveStory:", err);
+    // Nunca propagamos el error: el álbum se queda publicado sin
+    // historia generada en vez de fallar la publicación entera.
   }
 }
 
@@ -90,6 +228,12 @@ export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: str
     .eq("id", albumId);
 
   if (error) return { error: "No hemos podido publicar el álbum. Inténtalo otra vez." };
+
+  // Se hace DESPUÉS de confirmar que el álbum se publicó correctamente,
+  // y nunca puede hacer fallar la publicación (ver el try/catch interno
+  // de buildAndSaveStory) — así, aunque la generación de la historia
+  // tarde o falle, el usuario ya tiene su álbum publicado.
+  await buildAndSaveStory(albumId, a.title, a.location_name);
 
   return { ok: true };
 }

@@ -12,6 +12,7 @@ import {
 } from "@/lib/validations/auth";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/client-ip";
+import { getSiteUrl } from "@/lib/site-url";
 
 const PENDING_NFC_COOKIE = "pending_nfc_token";
 const PENDING_VERIFY_EMAIL_COOKIE = "pending_verify_email";
@@ -65,7 +66,7 @@ export async function signUp(formData: FormData): Promise<ActionResult> {
     password: parsed.data.password,
     options: {
       data: { full_name: parsed.data.fullName },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      emailRedirectTo: `${getSiteUrl()}/auth/callback`,
     },
   });
 
@@ -169,7 +170,7 @@ export async function requestPasswordReset(formData: FormData): Promise<ActionRe
   const supabase = await createClient();
   // No revelamos si el email existe o no en la respuesta (evita enumeración de usuarios).
   await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/actualizar-password`,
+    redirectTo: `${getSiteUrl()}/auth/callback?next=/actualizar-password`,
   });
 
   redirect("/recuperar/revisa-tu-email");
@@ -256,7 +257,7 @@ export async function resendVerificationEmail(): Promise<ActionResult> {
   const { error } = await supabase.auth.resend({
     type: "signup",
     email,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
+    options: { emailRedirectTo: `${getSiteUrl()}/auth/callback` },
   });
 
   if (error) {

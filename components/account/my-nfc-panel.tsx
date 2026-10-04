@@ -12,9 +12,12 @@ import { cn } from "@/lib/utils";
 export function MyNfcPanel({
   initialTags,
   quota,
+  bare,
 }: {
   initialTags: SelfNfcRow[];
   quota: number;
+  /** El contenedor y el título ya los pone quien use este componente (p.ej. /cuenta). */
+  bare?: boolean;
 }) {
   const [tags, setTags] = useState(initialTags);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +39,8 @@ export function MyNfcPanel({
     });
   }
 
-  return (
-    <section className="rounded-2xl bg-white p-5 shadow-soft">
-      <div className="mb-3 flex items-center gap-2">
-        <Nfc className="h-4 w-4 text-amber-600" />
-        <h2 className="font-display text-base font-semibold text-ink-900">Tu propio NFC</h2>
-      </div>
+  const content = (
+    <>
       <p className="text-sm text-ink-500">
         ¿Ya tienes tu propia pegatina o etiqueta NFC? Genera aquí el código de Toca y Recuerda y
         grábalo tú mismo (por ejemplo, con la app gratuita "NFC Tools"). Tienes derecho a{" "}
@@ -89,6 +88,18 @@ export function MyNfcPanel({
           </Link>
         )}
       </div>
+    </>
+  );
+
+  if (bare) return content;
+
+  return (
+    <section className="rounded-2xl bg-white p-5 shadow-soft">
+      <div className="mb-3 flex items-center gap-2">
+        <Nfc className="h-4 w-4 text-amber-600" />
+        <h2 className="font-display text-base font-semibold text-ink-900">Tu propio NFC</h2>
+      </div>
+      {content}
     </section>
   );
 }

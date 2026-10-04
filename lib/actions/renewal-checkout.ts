@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripe } from "@/lib/stripe";
+import { getSiteUrl } from "@/lib/site-url";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export type RenewalCheckoutResult = { error: string } | { url: string };
@@ -71,7 +72,7 @@ export async function createRenewalCheckoutSession(albumId: string): Promise<Ren
     return { error: "El pago no está disponible ahora mismo. Inténtalo más tarde." };
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = getSiteUrl();
 
   try {
     const session = await stripe.checkout.sessions.create({

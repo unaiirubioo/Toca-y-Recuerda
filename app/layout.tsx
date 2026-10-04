@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Fraunces } from "next/font/google";
 import "@/styles/globals.css";
 import { CartProvider } from "@/lib/cart-context";
+import { getSiteUrl } from "@/lib/site-url";
 import { AutoTranslate } from "@/components/layout/auto-translate";
 
 // Antes, "Inter" y "Fraunces" solo estaban referenciadas por nombre en
@@ -13,7 +14,7 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swa
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-display", display: "swap" });
 
 const siteName = "Toca y Recuerda";
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://tocayrecuerda.com";
+const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl || 'https://toca-y-recuerda.vercel.app'),

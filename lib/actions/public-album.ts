@@ -1,7 +1,6 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { getAlbumIdBySlug, getPublicAlbum } from "@/lib/queries/public-album";
 import { verifyPassword } from "@/lib/security/password";
 import { cookieNameForAlbum, signAlbumAccessToken } from "@/lib/security/album-access";
@@ -13,14 +12,25 @@ export type UnlockResult = { error: string } | { error?: undefined; ok: true };
 export async function unlockAlbumBySlug(slug: string, password: string): Promise<UnlockResult> {
   const albumId = await getAlbumIdBySlug(slug);
   if (!albumId) return { error: "No hemos encontrado ese recuerdo." };
-  return unlockAlbum(albumId, password, `/album/${slug}`);
+  return unlockAlbum(albumId, password);
 }
 
 export async function unlockAlbumByToken(token: string, password: string): Promise<UnlockResult> {
   return unlockAlbumViaToken(token, password);
 }
 
-async function unlockAlbum(albumId: string, password: string, redirectTo: string): Promise<UnlockResult> {
+/**
+ * OJO: esta función NUNCA debe llamar a redirect() de next/navigation.
+ * Antes lo hacía tras guardar la cookie — pero redirect() funciona
+ * lanzando internamente una excepción especial, y al invocarse desde un
+ * componente cliente dentro de startTransition(), esa excepción podía
+ * acabar atrapada por el error boundary global (app/error.tsx) en vez
+ * de navegar, mostrando "Ups, algo ha ido mal" aunque la contraseña
+ * fuera correcta y todo hubiera ido bien. Por eso solo fallaba con la
+ * contraseña BUENA (la mala simplemente devuelve un error, sin pasar
+ * por aquí). Ahora solo confirmamos y es el cliente quien refresca.
+ */
+async function unlockAlbum(albumId: string, password: string): Promise<UnlockResult> {
   const ip = await getClientIp();
   const byAlbum = checkRateLimit(`unlock:album:${albumId}`, 15, 15 * 60 * 1000);
   const byIp = checkRateLimit(`unlock:ip:${ip}`, 40, 15 * 60 * 1000);
@@ -44,7 +54,7 @@ async function unlockAlbum(albumId: string, password: string, redirectTo: string
     maxAge: 60 * 60 * 24,
   });
 
-  redirect(redirectTo);
+  return { ok: true };
 }
 
 async function unlockAlbumViaToken(token: string, password: string): Promise<UnlockResult> {
@@ -54,7 +64,7 @@ async function unlockAlbumViaToken(token: string, password: string): Promise<Unl
   const albumId = (tag as any)?.album_id;
   if (!albumId) return { error: "No hemos encontrado ese recuerdo." };
 
-  return unlockAlbum(albumId, password, `/n/${token}`);
+  return unlockAlbum(albumId, password);
 }
 
 /** Usado por las páginas del visor para saber si el visitante ya desbloqueó este álbum. */

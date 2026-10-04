@@ -331,26 +331,6 @@ export function EditAlbumForm({
         </div>
       </section>
 
-      <section className="space-y-4 rounded-2xl bg-white p-6 shadow-soft">
-        <div>
-          <Label htmlFor="musicTitle">Música — título</Label>
-          <Input
-            id="musicTitle"
-            value={form.musicTitle ?? ""}
-            onChange={(e) => update("musicTitle", e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="musicUrl">Música — enlace</Label>
-          <Input
-            id="musicUrl"
-            type="url"
-            value={form.musicUrl ?? ""}
-            onChange={(e) => update("musicUrl", e.target.value)}
-          />
-        </div>
-      </section>
-
       <section className="space-y-3 rounded-2xl bg-white p-6 shadow-soft">
         <Label>Privacidad</Label>
         <div className="flex gap-3">

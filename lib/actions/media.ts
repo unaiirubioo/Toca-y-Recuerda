@@ -123,6 +123,16 @@ export async function confirmMediaUpload(
     width?: number;
     height?: number;
     durationSeconds?: number;
+    // Resultado del análisis hecho gratis en el navegador de quien sube
+    // el archivo (ver lib/ai/client-vision.ts) — nunca obligatorio: si
+    // falta (análisis fallido, navegador sin soporte), se guarda sin
+    // ello y el álbum se crea igual.
+    takenAt?: string;
+    lat?: number;
+    lng?: number;
+    phash?: string;
+    blurScore?: number;
+    tags?: string[];
   }
 ): Promise<{ error: string } | { ok: true }> {
   const supabase = await createClient();
@@ -174,6 +184,10 @@ export async function confirmMediaUpload(
       width: media.width ?? null,
       height: media.height ?? null,
       duration_seconds: media.durationSeconds ?? null,
+      taken_at: media.takenAt ?? null,
+      phash: media.phash ?? null,
+      blur_score: media.blurScore ?? null,
+      tags: media.tags ?? [],
     })
     .select("id")
     .single();
@@ -265,16 +279,33 @@ export async function deleteMedia(albumId: string, mediaId: string): Promise<voi
 
 export async function setCoverMedia(albumId: string, mediaId: string): Promise<{ error?: string }> {
   const supabase = await createClient();
-  // cover_media_id no tiene el privilegio revocado (no es una palanca
-  // de negocio, solo estética) — el cliente normal + RLS bastan.
-  //
-  // Antes esto no comprobaba el error: si fallaba (por ejemplo, por
-  // una condición de carrera con la foto recién subida), la portada se
-  // quedaba igual sin ningún aviso — parecía que "cambiar portada" no
-  // hacía nada (spec #11).
-  const { error } = await supabase.from("albums").update({ cover_media_id: mediaId }).eq("id", albumId);
+
+  // Comprobación de propiedad con el cliente normal (RLS): si el álbum
+  // no es del usuario, o esa foto no pertenece a este álbum, no seguimos.
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return { error: "Tu sesión ha caducado. Inicia sesión otra vez." };
+
+  const { data: album } = await supabase.from("albums").select("id, owner_id").eq("id", albumId).maybeSingle();
+  if (!album) return { error: "No hemos encontrado ese álbum." };
+
+  const { data: media } = await supabase
+    .from("album_media")
+    .select("id")
+    .eq("id", mediaId)
+    .eq("album_id", albumId)
+    .maybeSingle();
+  if (!media) return { error: "Esa foto ya no está en este álbum. Recarga la página e inténtalo otra vez." };
+
+  // La escritura se hace con el cliente admin a propósito: así evitamos
+  // depender de que la política RLS de UPDATE se comporte exactamente
+  // como se espera en todos los casos (por ejemplo, justo después de
+  // subir la foto, por una condición de carrera de caché) — la
+  // propiedad ya ha quedado comprobada arriba con el cliente normal.
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+  const { error } = await admin.from("albums").update({ cover_media_id: mediaId }).eq("id", albumId);
   if (error) {
-    console.error("setCoverMedia:", error.message);
+    console.error("setCoverMedia:", error.code, error.message, error.details, error.hint);
     return { error: "No hemos podido poner esa foto como portada. Inténtalo otra vez." };
   }
   revalidatePath(`/albumes/${albumId}/editar`);

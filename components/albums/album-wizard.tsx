@@ -56,19 +56,19 @@ const initialState: FormState = {
 // Se añadió el paso "Fotos y vídeos" (spec: subir dentro del propio
 // asistente) y el cierre pasó de "Publicar álbum" a "Crear con IA",
 // porque ahora la última pulsación dispara el diseño automático.
+// El paso de música se eliminó (spec): ya no se usa en ningún sitio del álbum.
 const STEP_TITLES = [
   "¿Cómo se llama este recuerdo?",
   "¿Cuándo ocurrió?",
   "¿Dónde fue?",
   "Cuéntanos el recuerdo",
   "Dale tu estilo",
-  "¿Quieres añadir música?",
   "¿Quién puede verlo?",
   "Sube tus fotos y vídeos",
   "Revisión",
 ];
 
-const PHOTOS_STEP = 7;
+const PHOTOS_STEP = 6;
 
 export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
   // Si ya llegamos con un NFC (por ejemplo, tras escanearlo físicamente),
@@ -357,32 +357,6 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
 
         {step === 5 && (
           <div className="space-y-4">
-            <p className="text-sm text-ink-500">
-              Añade el enlace de una canción que tengas derecho a usar (por ejemplo, un enlace directo a un archivo de audio). La biblioteca propia de música llegará más adelante.
-            </p>
-            <div>
-              <Label htmlFor="musicTitle">Título de la canción (opcional)</Label>
-              <Input
-                id="musicTitle"
-                value={form.musicTitle ?? ""}
-                onChange={(e) => update("musicTitle", e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="musicUrl">Enlace (opcional)</Label>
-              <Input
-                id="musicUrl"
-                type="url"
-                placeholder="https://…"
-                value={form.musicUrl ?? ""}
-                onChange={(e) => update("musicUrl", e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
-        {step === 6 && (
-          <div className="space-y-4">
             <div className="flex gap-3">
               <button
                 type="button"
@@ -440,7 +414,7 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
           </div>
         )}
 
-        {step === 8 && (
+        {step === 7 && (
           <div className="space-y-3 rounded-xl border border-ink-100 bg-cream-100 p-5">
             <p>
               <span className="font-medium">Nombre:</span> {form.title || "—"}

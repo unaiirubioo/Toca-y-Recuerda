@@ -20,6 +20,8 @@ function formatDateRange(start: string | null, end: string | null): string | nul
 export function AlbumViewer({ album }: { album: PublicAlbum }) {
   const dateText = formatDateRange(album.eventDateStart, album.eventDateEnd);
   const hasMap = album.locationLat != null && album.locationLng != null;
+  const story = album.aiStory;
+  const mediaById = new Map(album.media.map((m) => [m.id, m]));
 
   // Portada con IA real y gratuita (spec #11): solo se usa cuando no
   // hay una foto de portada propia ya resuelta — nunca sustituye a un
@@ -35,8 +37,8 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
 
   return (
     <main className="min-h-screen bg-cream-100">
-      {/* Portada grande */}
-      <div className="relative flex h-[38vh] min-h-[260px] items-end justify-center overflow-hidden bg-ink-900">
+      {/* Portada — más pequeña que antes (spec): protagonismo para los recuerdos, no para la foto de arriba. */}
+      <div className="relative flex h-[28vh] min-h-[200px] items-end justify-center overflow-hidden bg-ink-900">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={heroImageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
@@ -58,19 +60,73 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
           </p>
         )}
 
-        {album.media.length > 0 && (
-          <section>
-            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Galería</h2>
-            <ViewerGallery items={album.media} />
-          </section>
+        {story && story.sections.length > 0 ? (
+          <>
+            {story.intro && (
+              <p className="-mt-4 text-center font-display text-lg italic text-ink-700 sm:text-xl">{story.intro}</p>
+            )}
+
+            {story.sections.map((section, index) => {
+              // Destacados de esta sección primero (en grande), y el
+              // resto de archivos del mismo momento debajo, más
+              // pequeños — nada se pierde, solo se ordena por
+              // importancia (spec: "momentos destacados" + "todos los
+              // recuerdos" dentro de cada momento).
+              const highlightItems = section.highlightMediaIds.map((id) => mediaById.get(id)).filter(Boolean) as typeof album.media;
+              const restItems = section.mediaIds
+                .filter((id) => !section.highlightMediaIds.includes(id))
+                .map((id) => mediaById.get(id))
+                .filter(Boolean) as typeof album.media;
+
+              if (highlightItems.length === 0 && restItems.length === 0) return null;
+
+              return (
+                <section key={index}>
+                  <h2 className="mb-1 font-display text-xl font-semibold text-ink-900">{section.title}</h2>
+                  {section.description && <p className="mb-4 text-sm text-ink-500">{section.description}</p>}
+                  {highlightItems.length > 0 && <ViewerGallery items={highlightItems} />}
+                  {restItems.length > 0 && (
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {restItems.map((item) => (
+                        <div key={item.id} className="aspect-square overflow-hidden rounded-lg bg-ink-50">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+
+            {story.closing && (
+              <p className="text-center font-display text-lg italic text-ink-700 sm:text-xl">{story.closing}</p>
+            )}
+          </>
+        ) : (
+          album.media.length > 0 && (
+            <section>
+              <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Galería</h2>
+              <ViewerGallery items={album.media} />
+            </section>
+          )
         )}
 
         {album.memories.length > 0 && (
           <section>
-            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">La historia</h2>
+            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">
+              {story ? "Notas" : "La historia"}
+            </h2>
             <div className="space-y-4 whitespace-pre-line rounded-2xl bg-white p-6 text-ink-700 shadow-soft">
               {album.memories.join("\n\n")}
             </div>
+          </section>
+        )}
+
+        {story && story.sections.length > 0 && (
+          <section>
+            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Todos los recuerdos</h2>
+            <ViewerGallery items={album.media} />
           </section>
         )}
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { chooseAiDesign } from "@/lib/ai/design-heuristic";
@@ -236,4 +237,45 @@ export async function finalizeAlbumWithAi(albumId: string): Promise<{ error: str
   await buildAndSaveStory(albumId, a.title, a.location_name);
 
   return { ok: true };
+}
+
+/**
+ * Guarda la historia de IA después de que el usuario la edite a mano
+ * (spec #4 y #9): títulos de cada momento, descripciones, orden de los
+ * momentos y qué foto va en cada uno — todo editable e intuitivo desde
+ * la edición del álbum. Se comprueba la propiedad con el cliente
+ * normal (RLS) y se escribe con el cliente admin, igual que el resto
+ * de acciones de edición de álbum.
+ */
+export async function updateAiStory(albumId: string, story: AiStory): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return { error: "Tu sesión ha caducado. Inicia sesión otra vez." };
+
+  const { data: album } = await supabase.from("albums").select("id").eq("id", albumId).maybeSingle();
+  if (!album) return { error: "No hemos encontrado ese álbum." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.from("albums").update({ ai_story: story }).eq("id", albumId);
+  if (error) {
+    console.error("updateAiStory:", error.message);
+    return { error: "No hemos podido guardar los cambios. Inténtalo otra vez." };
+  }
+
+  // Mantiene moment_index / is_highlight de cada archivo en sintonía
+  // con la historia editada, por si algo más de la app (como el panel
+  // de admin) llega a fijarse en esas columnas en vez de en ai_story.
+  await Promise.all(
+    story.sections.flatMap((section, index) =>
+      section.mediaIds.map((mediaId) =>
+        admin
+          .from("album_media")
+          .update({ moment_index: index, is_highlight: section.highlightMediaIds.includes(mediaId) })
+          .eq("id", mediaId)
+      )
+    )
+  );
+
+  revalidatePath(`/albumes/${albumId}/editar`);
+  return {};
 }

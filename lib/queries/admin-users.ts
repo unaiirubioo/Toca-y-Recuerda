@@ -1,10 +1,13 @@
 import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getAlbumOnlyCreditsPurchased, getMySelfNfcTags } from "@/lib/queries/self-nfc";
+import { computeSelfNfcQuota } from "@/lib/business/self-nfc-quota";
 
 export type AdminUserRow = {
   id: string;
   fullName: string | null;
   email: string | null;
+  emailVerified: boolean;
   role: "user" | "admin";
   isBlocked: boolean;
   albumCount: number;
@@ -38,6 +41,7 @@ export async function listUsers(): Promise<AdminUserRow[]> {
     id: p.id,
     fullName: p.full_name,
     email: usersResult[i]?.data.user?.email ?? null,
+    emailVerified: !!usersResult[i]?.data.user?.email_confirmed_at,
     role: p.role,
     isBlocked: p.is_blocked,
     albumCount: albumCountByUser.get(p.id) ?? 0,
@@ -46,8 +50,20 @@ export async function listUsers(): Promise<AdminUserRow[]> {
 }
 
 export type AdminUserDetail = AdminUserRow & {
+  emailVerified: boolean;
+  storageUsedMb: number;
+  storageLimitMb: number;
+  selfNfcQuota: number;
+  selfNfcUsed: number;
   albums: { id: string; title: string; status: string; isPremium: boolean }[];
-  orders: { id: string; totalCents: number; status: string; createdAt: string; isGift: boolean }[];
+  orders: {
+    id: string;
+    totalCents: number;
+    status: string;
+    createdAt: string;
+    isGift: boolean;
+    products: { name: string; quantity: number }[];
+  }[];
 };
 
 export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
@@ -62,11 +78,24 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
   if (!profile) return null;
   const p = profile as any;
 
-  const [{ data: authUser }, { data: albums }, ordersRes] = await Promise.all([
+  const [{ data: authUser }, { data: albums }, ordersRes, albumOnlyCredits, selfNfcTags] = await Promise.all([
     admin.auth.admin.getUserById(userId),
-    admin.from("albums").select("id, title, status, is_premium").eq("owner_id", userId),
-    admin.from("orders").select("id, total_cents, status, created_at, is_gift").eq("user_id", userId),
+    admin
+      .from("albums")
+      .select("id, title, status, is_premium, storage_used_mb, storage_limit_mb")
+      .eq("owner_id", userId),
+    admin
+      .from("orders")
+      .select("id, total_cents, status, created_at, is_gift, order_items ( quantity, products ( name ) )")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    getAlbumOnlyCreditsPurchased(userId),
+    getMySelfNfcTags(userId),
   ]);
+
+  const albumRows = (albums as any[]) ?? [];
+  const storageUsedMb = albumRows.reduce((sum, a) => sum + Number(a.storage_used_mb ?? 0), 0);
+  const storageLimitMb = albumRows.reduce((sum, a) => sum + Number(a.storage_limit_mb ?? 0), 0);
 
   // Si falta la migración 0007 (columna is_gift), esta consulta falla
   // y antes se tragaba el error en silencio, dejando ver "0 pedidos"
@@ -79,10 +108,15 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
     id: p.id,
     fullName: p.full_name,
     email: authUser.user?.email ?? null,
+    emailVerified: !!authUser.user?.email_confirmed_at,
     role: p.role,
     isBlocked: p.is_blocked,
-    albumCount: (albums as any[])?.length ?? 0,
+    albumCount: albumRows.length,
     createdAt: p.created_at,
+    storageUsedMb,
+    storageLimitMb,
+    selfNfcQuota: computeSelfNfcQuota({ albumOnlyCreditsPurchased: albumOnlyCredits }),
+    selfNfcUsed: selfNfcTags.length,
     albums: ((albums as any[]) ?? []).map((a) => ({
       id: a.id,
       title: a.title,
@@ -95,6 +129,13 @@ export async function getUserDetail(userId: string): Promise<AdminUserDetail | n
       status: o.status,
       createdAt: o.created_at,
       isGift: !!o.is_gift,
+      // spec #13: antes se veía "Regalo" sin decir QUÉ se había
+      // regalado — ahora se listan los productos del pedido, igual
+      // que ya se hacía en /cuenta para las compras del propio usuario.
+      products: (o.order_items ?? []).map((item: any) => ({
+        name: item.products?.name ?? "Producto",
+        quantity: item.quantity,
+      })),
     })),
   };
 }

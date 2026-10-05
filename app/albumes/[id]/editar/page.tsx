@@ -25,7 +25,7 @@ export default async function EditAlbumPage({
     supabase
       .from("albums")
       .select(
-        "id, title, description, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_font, design_layout, music_url, music_title, privacy, status, is_premium, public_slug, cover_media_id, photo_count, video_count, photo_limit, video_limit, storage_used_mb, storage_limit_mb"
+        "id, title, description, event_date_start, event_date_end, location_name, location_lat, location_lng, design_theme, design_font, design_layout, music_url, music_title, privacy, status, is_premium, public_slug, cover_media_id, photo_count, video_count, photo_limit, video_limit, storage_used_mb, storage_limit_mb, ai_story"
       )
       .eq("id", id)
       .single(),
@@ -81,6 +81,7 @@ export default async function EditAlbumPage({
           hasUnassignedNfc={unassignedNfcCount > 0}
           initialMemories={initialMemories}
           aiDescription={a.description}
+          aiStory={a.ai_story ?? null}
           justCreated={creando === "1"}
         />
       </main>

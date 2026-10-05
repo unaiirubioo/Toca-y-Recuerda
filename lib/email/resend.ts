@@ -9,9 +9,18 @@
  * en los logs — así el resto de la app (recordatorios, borrado) sigue
  * funcionando igual aunque el email aún no esté configurado.
  */
-export async function sendEmail(input: { to: string; subject: string; html: string }): Promise<boolean> {
+export async function sendEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  /** Si lo rellenas, al admin le basta con pulsar "Responder" en su email para escribirle directo a esta dirección. */
+  replyTo?: string;
+}): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.RESEND_FROM_EMAIL ?? "Toca y Recuerda <onboarding@resend.dev>";
+  // OJO: `||` y no `??` — si la variable existe pero está vacía (fácil
+  // de dejar así sin querer en Vercel), `??` no la sustituiría y Resend
+  // rechazaría el envío con un remitente en blanco.
+  const from = process.env.RESEND_FROM_EMAIL || "Toca y Recuerda <onboarding@resend.dev>";
 
   if (!apiKey) {
     console.warn("sendEmail: falta RESEND_API_KEY — no se envía email a", input.to, "asunto:", input.subject);
@@ -25,7 +34,13 @@ export async function sendEmail(input: { to: string; subject: string; html: stri
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: input.to, subject: input.subject, html: input.html }),
+      body: JSON.stringify({
+        from,
+        to: input.to,
+        subject: input.subject,
+        html: input.html,
+        ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+      }),
       cache: "no-store",
     });
 

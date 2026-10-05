@@ -23,21 +23,21 @@ async function peekEligibility(userId: string) {
 
   // OJO: este conteo tiene que ser EXACTAMENTE el mismo filtro que el
   // de la comprobación real en createAlbum (más abajo) y el de
-  // getAlbumAvailabilityStatus. Antes este "peek" contaba CUALQUIER
-  // álbum no premium (incluidos borradores vacíos abandonados), más
-  // estricto que la comprobación real — así que a veces esta pantalla
-  // ya rechazaba a alguien que createAlbum sí habría dejado pasar (o,
-  // dependiendo del caché de la página, el usuario llegaba a ver el
-  // asistente y luego chocaba con el límite real al confirmar). Un
-  // álbum solo cuenta como "usado" si está publicado o ya tiene fotos
-  // o vídeos — nunca un borrador vacío.
+  // getAlbumAvailabilityStatus. Un álbum gratuito solo cuenta como
+  // "usado" si llegó a PUBLICARSE. Antes también contaba cualquier
+  // borrador con alguna foto subida, lo que consumía el único álbum
+  // gratuito de por vida de alguien que simplemente estaba probando el
+  // asistente y no llegó a terminarlo (por ejemplo, por otro error que
+  // le impidió llegar al final) — esa es la causa confirmada de que el
+  // muro de pago apareciera para gente que juraba no haber usado nunca
+  // su álbum gratis.
   const [{ count: freeAlbumCount }, { count: creditCount }, freePlan] = await Promise.all([
     supabase
       .from("albums")
       .select("id", { count: "exact", head: true })
       .eq("owner_id", userId)
       .eq("is_premium", false)
-      .or("status.eq.published,photo_count.gt.0,video_count.gt.0"),
+      .eq("status", "published"),
     supabase.from("album_credits").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("consumed", false),
     getFreePlanLimits(),
   ]);
@@ -145,18 +145,18 @@ export async function createAlbum(values: AlbumFormValues, nfcToken?: string | n
     };
   } else {
     const freePlan = await getFreePlanLimits();
-    // Cuenta solo álbumes gratuitos "reales" (spec: nunca dejar que un
-    // borrador vacío y abandonado, de una versión anterior, bloquee
-    // para siempre el único álbum gratis de alguien). El bloque de
-    // arriba ya reutiliza el borrador más reciente si existe; esto es
-    // una segunda red de seguridad por si hay varios borradores viejos
-    // sueltos de antes de ese arreglo.
+    // Cuenta solo álbumes gratuitos ya PUBLICADOS (spec: nunca dejar
+    // que un borrador —vacío o con fotos de una prueba a medias—
+    // bloquee para siempre el único álbum gratis de alguien). El
+    // bloque de arriba ya reutiliza el borrador más reciente si
+    // existe; esto es una segunda red de seguridad por si hay varios
+    // borradores viejos sueltos de antes de ese arreglo.
     const { count: freeAlbumCount } = await admin
       .from("albums")
       .select("id", { count: "exact", head: true })
       .eq("owner_id", userId)
       .eq("is_premium", false)
-      .or("status.eq.published,photo_count.gt.0,video_count.gt.0");
+      .eq("status", "published");
 
     const eligibility = computeAlbumEligibility({
       freeAlbumCount: freeAlbumCount ?? 0,

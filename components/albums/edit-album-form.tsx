@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { StorageUsage } from "@/components/ui/storage-usage";
 import { useRouter } from "next/navigation";
 import { updateAlbum, deleteAlbum, unlinkNfc, linkOwnedNfc } from "@/lib/actions/albums";
-import { finalizeAlbumWithAi } from "@/lib/actions/ai-design";
+import { finalizeAlbumWithAi, type AiStory } from "@/lib/actions/ai-design";
 import type { AlbumFormValues } from "@/lib/validations/albums";
 import type { AlbumMediaItem } from "@/lib/queries/media";
 import { MediaUploader } from "@/components/albums/media-uploader";
@@ -21,23 +21,12 @@ import { MemoriesEditor } from "@/components/albums/memories-editor";
 import { LocationAutocomplete } from "@/components/albums/location-autocomplete";
 import { NfcLinkByCodeForm } from "@/components/albums/nfc-link-form";
 import { CoverUploader } from "@/components/albums/cover-uploader";
+import { StoryEditor } from "@/components/albums/story-editor";
 
 const LocationPicker = dynamic(
   () => import("@/components/albums/location-picker").then((m) => m.LocationPicker),
   { ssr: false, loading: () => <div className="h-[260px] rounded-xl bg-ink-50" /> }
 );
-
-const THEMES = [
-  { value: "classic", label: "Clásico", swatch: "bg-ink-700" },
-  { value: "moderno", label: "Moderno", swatch: "bg-amber-500" },
-  { value: "minimal", label: "Minimalista", swatch: "bg-ink-300" },
-] as const;
-
-const LAYOUTS = [
-  { value: "grid", label: "Cuadrícula" },
-  { value: "revista", label: "Revista" },
-  { value: "linea-tiempo", label: "Línea de tiempo" },
-] as const;
 
 export type EditableAlbum = Partial<AlbumFormValues> & {
   id: string;
@@ -61,6 +50,7 @@ export function EditAlbumForm({
   hasUnassignedNfc,
   initialMemories,
   aiDescription,
+  aiStory,
   justCreated,
 }: {
   album: EditableAlbum;
@@ -69,6 +59,7 @@ export function EditAlbumForm({
   hasUnassignedNfc: boolean;
   initialMemories: string[];
   aiDescription?: string | null;
+  aiStory?: AiStory | null;
   justCreated?: boolean;
 }) {
   const [showAiBanner, setShowAiBanner] = useState(!!justCreated && !!aiDescription);
@@ -290,46 +281,21 @@ export function EditAlbumForm({
         <MemoriesEditor albumId={album.id} initial={initialMemories} />
       </section>
 
-      <section className="space-y-4 rounded-2xl bg-white p-6 shadow-soft">
-        <h2 className="font-display text-base font-semibold text-ink-900">Estilo</h2>
-        <div>
-          <Label>Tema</Label>
-          <div className="flex gap-3">
-            {THEMES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => update("designTheme", t.value)}
-                className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-xs focus-ring ${
-                  form.designTheme === t.value ? "border-amber-500" : "border-ink-100"
-                }`}
-              >
-                <span className={`h-8 w-8 rounded-full ${t.swatch}`} />
-                {t.label}
-              </button>
-            ))}
+      {aiStory && aiStory.sections.length > 0 && (
+        <section className="space-y-3 rounded-2xl bg-white p-6 shadow-soft">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-amber-600" />
+            <h2 className="font-display text-base font-semibold text-ink-900">
+              Vista previa interactiva del álbum con IA
+            </h2>
           </div>
-        </div>
-        <div>
-          <Label>Distribución</Label>
-          <div className="flex flex-wrap gap-2">
-            {LAYOUTS.map((l) => (
-              <button
-                key={l.value}
-                type="button"
-                onClick={() => update("designLayout", l.value)}
-                className={`rounded-full border px-4 py-2 text-sm focus-ring ${
-                  form.designLayout === l.value
-                    ? "border-amber-500 bg-amber-500/10 text-amber-600"
-                    : "border-ink-100 text-ink-700"
-                }`}
-              >
-                {l.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+          <p className="text-sm text-ink-500">
+            Cambia los títulos y las notas de cada momento, y mueve las fotos donde quieras — arrástralas a
+            otro momento o a otra posición. No olvides guardar los cambios.
+          </p>
+          <StoryEditor albumId={album.id} initialStory={aiStory} media={media} />
+        </section>
+      )}
 
       <section className="space-y-3 rounded-2xl bg-white p-6 shadow-soft">
         <Label>Privacidad</Label>

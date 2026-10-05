@@ -127,7 +127,7 @@ export async function getAlbumAvailabilityStatus(userId: string): Promise<AlbumA
       .select("id", { count: "exact", head: true })
       .eq("owner_id", userId)
       .eq("is_premium", false)
-      .or("status.eq.published,photo_count.gt.0,video_count.gt.0"),
+      .eq("status", "published"),
     getAvailableCredits(userId),
   ]);
 

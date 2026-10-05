@@ -82,7 +82,9 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
 
               return (
                 <section key={index}>
-                  <h2 className="mb-1 font-display text-xl font-semibold text-ink-900">{section.title}</h2>
+                  <h2 className="mb-1 font-display text-xl font-semibold text-ink-900">
+                    {section.title?.trim() || `Momento ${index + 1}`}
+                  </h2>
                   {section.description && <p className="mb-4 text-sm text-ink-500">{section.description}</p>}
                   {highlightItems.length > 0 && <ViewerGallery items={highlightItems} />}
                   {restItems.length > 0 && (
@@ -123,12 +125,23 @@ export function AlbumViewer({ album }: { album: PublicAlbum }) {
           </section>
         )}
 
-        {story && story.sections.length > 0 && (
-          <section>
-            <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Todos los recuerdos</h2>
-            <ViewerGallery items={album.media} />
-          </section>
-        )}
+        {story && story.sections.length > 0 && (() => {
+          // Spec #6: ninguna foto debe aparecer duplicada en la página.
+          // Cada archivo ya sale exactamente una vez arriba, dentro de
+          // su momento (como destacado o en la cuadrícula pequeña del
+          // resto) — aquí solo deben aparecer los que, por lo que sea,
+          // no quedaron asignados a ningún momento, para no perder
+          // ningún archivo original sin repetir los que ya se ven.
+          const shownIds = new Set(story.sections.flatMap((s) => s.mediaIds));
+          const remaining = album.media.filter((m) => !shownIds.has(m.id));
+          if (remaining.length === 0) return null;
+          return (
+            <section>
+              <h2 className="mb-4 font-display text-xl font-semibold text-ink-900">Todos los recuerdos</h2>
+              <ViewerGallery items={remaining} />
+            </section>
+          );
+        })()}
 
         {hasMap && (
           <section>

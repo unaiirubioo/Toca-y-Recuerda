@@ -54,6 +54,7 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Álbumes</th>
+              <th className="px-4 py-3">Correo</th>
               <th className="px-4 py-3">Rol</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3"></th>
@@ -69,6 +70,11 @@ export function UsersTable({ users }: { users: AdminUserRow[] }) {
                 </td>
                 <td className="px-4 py-3 text-ink-700">{u.email}</td>
                 <td className="px-4 py-3 text-ink-700">{u.albumCount}</td>
+                <td className="px-4 py-3">
+                  <Badge variant={u.emailVerified ? "success" : "outline"}>
+                    {u.emailVerified ? "Verificado" : "Sin verificar"}
+                  </Badge>
+                </td>
                 <td className="px-4 py-3">
                   {u.role === "admin" && <Badge variant="premium">Admin</Badge>}
                 </td>

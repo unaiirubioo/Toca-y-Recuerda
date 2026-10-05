@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { StepIndicator } from "@/components/albums/step-indicator";
 import { LocationAutocomplete } from "@/components/albums/location-autocomplete";
 import { MediaUploader } from "@/components/albums/media-uploader";
+import { CoverPhotoStep } from "@/components/albums/cover-photo-step";
 import { createAlbum, updateAlbum, updateAlbumMemories } from "@/lib/actions/albums";
 import { NfcAssociationStep } from "@/components/albums/nfc-association-step";
 import { finalizeAlbumWithAi } from "@/lib/actions/ai-design";
@@ -21,18 +22,6 @@ const LocationPicker = dynamic(
   () => import("@/components/albums/location-picker").then((m) => m.LocationPicker),
   { ssr: false, loading: () => <div className="h-[260px] rounded-xl bg-ink-50" /> }
 );
-
-const THEMES = [
-  { value: "classic", label: "Clásico", swatch: "bg-ink-700" },
-  { value: "moderno", label: "Moderno", swatch: "bg-amber-500" },
-  { value: "minimal", label: "Minimalista", swatch: "bg-ink-300" },
-] as const;
-
-const LAYOUTS = [
-  { value: "grid", label: "Cuadrícula" },
-  { value: "revista", label: "Revista" },
-  { value: "linea-tiempo", label: "Línea de tiempo" },
-] as const;
 
 type FormState = AlbumFormValues;
 
@@ -57,13 +46,19 @@ const initialState: FormState = {
 // asistente) y el cierre pasó de "Publicar álbum" a "Crear con IA",
 // porque ahora la última pulsación dispara el diseño automático.
 // El paso de música se eliminó (spec): ya no se usa en ningún sitio del álbum.
+// El paso "Dale tu estilo" (tema/distribución) también se eliminó (spec):
+// el diseño lo decide la IA al final, elegir tema/distribución a mano ya
+// no pintaba nada. En su lugar se añadió un paso opcional para elegir la
+// foto de portada antes de subir el resto (spec #1) — por pura
+// coincidencia numérica, PHOTOS_STEP y el paso de revisión se quedan con
+// el mismo índice que antes (se quitó un paso y se añadió otro).
 const STEP_TITLES = [
   "¿Cómo se llama este recuerdo?",
   "¿Cuándo ocurrió?",
   "¿Dónde fue?",
   "Cuéntanos el recuerdo",
-  "Dale tu estilo",
   "¿Quién puede verlo?",
+  "Foto de portada (opcional)",
   "Sube tus fotos y vídeos",
   "Revisión",
 ];
@@ -311,51 +306,6 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
         )}
 
         {step === 4 && (
-          <div className="space-y-6">
-            <div>
-              <Label>Tema</Label>
-              <div className="flex gap-3">
-                {THEMES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => update("designTheme", t.value)}
-                    className={`flex flex-col items-center gap-2 rounded-xl border p-3 text-xs focus-ring ${
-                      form.designTheme === t.value ? "border-amber-500" : "border-ink-100"
-                    }`}
-                  >
-                    <span className={`h-8 w-8 rounded-full ${t.swatch}`} />
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-ink-500">
-                Es solo un punto de partida — nuestra IA lo afinará al final según tus fotos.
-              </p>
-            </div>
-            <div>
-              <Label>Distribución</Label>
-              <div className="flex flex-wrap gap-2">
-                {LAYOUTS.map((l) => (
-                  <button
-                    key={l.value}
-                    type="button"
-                    onClick={() => update("designLayout", l.value)}
-                    className={`rounded-full border px-4 py-2 text-sm focus-ring ${
-                      form.designLayout === l.value
-                        ? "border-amber-500 bg-amber-500/10 text-amber-600"
-                        : "border-ink-100 text-ink-700"
-                    }`}
-                  >
-                    {l.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 5 && (
           <div className="space-y-4">
             <div className="flex gap-3">
               <button
@@ -398,6 +348,8 @@ export function AlbumWizard({ nfcToken }: { nfcToken?: string | null }) {
             )}
           </div>
         )}
+
+        {step === 5 && <CoverPhotoStep albumId={albumId} />}
 
         {step === PHOTOS_STEP && (
           <div className="space-y-3">

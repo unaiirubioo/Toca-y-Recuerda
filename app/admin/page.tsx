@@ -19,9 +19,6 @@ const NFC_LABELS: Record<string, string> = {
 
 export default async function AdminDashboardPage() {
   const metrics = await getAdminMetrics();
-  const nfcSold = Object.entries(metrics.nfcByStatus)
-    .filter(([status]) => status !== "stock")
-    .reduce((sum, [, count]) => sum + count, 0);
 
   return (
     <div className="space-y-6">
@@ -34,17 +31,17 @@ export default async function AdminDashboardPage() {
         <MetricCard label="Usuarios" value={String(metrics.totalUsers)} icon={Users} color="ink" />
         <MetricCard label="Álbumes totales" value={String(metrics.totalAlbums)} icon={ImageIcon} color="ink" />
         <MetricCard
-          label="Álbumes Premium"
+          label="Álbumes comprados"
           value={String(metrics.premiumAlbums)}
-          hint={`${metrics.freeAlbums} gratuitos`}
+          hint={`${metrics.freeAlbums} gratis`}
           icon={Crown}
           color="amber"
         />
-        <MetricCard label="Ingresos" value={formatEuros(metrics.totalRevenueCents)} icon={Euro} color="success" />
+        <MetricCard label="NFC totales" value={String(metrics.totalNfc)} icon={Nfc} color="ink" />
         <MetricCard
-          label="NFC vendidos"
-          value={String(nfcSold)}
-          hint={`${metrics.nfcByStatus.stock ?? 0} disponibles`}
+          label="NFC comprados"
+          value={String(metrics.purchasedNfc)}
+          hint={`${metrics.freeNfc} autogenerados gratis`}
           icon={Nfc}
           color="amber"
         />
@@ -53,6 +50,24 @@ export default async function AdminDashboardPage() {
           value={formatMb(Math.round(metrics.totalStorageMb))}
           icon={HardDrive}
           color="ink"
+        />
+        <MetricCard
+          label="Ingresos por álbumes"
+          value={formatEuros(metrics.revenueAlbumsCents)}
+          icon={Euro}
+          color="success"
+        />
+        <MetricCard
+          label="Ingresos por NFC"
+          value={formatEuros(metrics.revenueNfcCents)}
+          icon={Euro}
+          color="success"
+        />
+        <MetricCard
+          label="Ingresos totales"
+          value={formatEuros(metrics.totalRevenueCents)}
+          icon={Euro}
+          color="success"
         />
       </div>
 

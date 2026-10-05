@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
@@ -30,7 +30,22 @@ export function MediaGrid({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [coverPendingId, setCoverPendingId] = useState<string | null>(null);
+  const [captionEditingId, setCaptionEditingId] = useState<string | null>(null);
+  const [captionDraft, setCaptionDraft] = useState("");
+  const [gridError, setGridError] = useState<string | null>(null);
   const router = useRouter();
+
+  // `useState(media)` solo usa `media` como valor INICIAL — si el
+  // servidor manda una lista nueva (por ejemplo, tras subir más fotos
+  // y hacer router.refresh()), React no lo recoge solo porque este
+  // componente ya estaba montado. Sin esto, la cuadrícula se quedaba
+  // "congelada" con la lista de la primera carga, y acciones sobre
+  // fotos subidas después (como ponerlas de portada) fallaban porque
+  // el id ya no coincidía con lo que el servidor esperaba ver.
+  useEffect(() => {
+    setItems(media);
+  }, [media]);
 
   if (items.length === 0) {
     return <p className="text-sm text-ink-500">Todavía no has añadido fotos ni vídeos.</p>;
@@ -83,15 +98,34 @@ export function MediaGrid({
   }
 
   async function handleSetCover(mediaId: string) {
-    await setCoverMedia(albumId, mediaId);
+    setGridError(null);
+    setCoverPendingId(mediaId);
+    const result = await setCoverMedia(albumId, mediaId);
+    setCoverPendingId(null);
+    if (result?.error) {
+      setGridError(result.error);
+      return;
+    }
     router.refresh();
   }
 
-  function handleEditCaption(mediaId: string, current: string | null) {
-    const next = window.prompt("Descripción de esta foto (opcional):", current ?? "");
-    if (next === null) return; // cancelado
-    setItems((prev) => prev.map((i) => (i.id === mediaId ? { ...i, caption: next.trim() || null } : i)));
-    updateMediaCaption(mediaId, next);
+  // Antes se usaba window.prompt() para la descripción: además de poco
+  // intuitivo, en algunos navegadores integrados (apps instaladas como
+  // PWA, webviews de otras apps) prompt() no funciona en absoluto y no
+  // pasa nada al escribir — encaja con el bug reportado ("lo pongo y no
+  // pone nada"). Ahora es un campo de texto normal, en la propia tarjeta.
+  function openCaptionEditor(mediaId: string, current: string | null) {
+    setCaptionEditingId(mediaId);
+    setCaptionDraft(current ?? "");
+  }
+
+  function saveCaption(mediaId: string) {
+    const value = captionDraft.trim();
+    setItems((prev) => prev.map((i) => (i.id === mediaId ? { ...i, caption: value || null } : i)));
+    setCaptionEditingId(null);
+    updateMediaCaption(mediaId, value).then((result) => {
+      if (result?.error) setGridError(result.error);
+    });
   }
 
   return (
@@ -99,6 +133,9 @@ export function MediaGrid({
       <p className="mb-2 text-xs text-ink-500">
         Arrastra una foto o vídeo para cambiar su orden, o usa las flechas al pasar el ratón.
       </p>
+      {gridError && (
+        <p className="mb-2 rounded-lg bg-danger/10 px-3 py-2 text-sm text-danger">{gridError}</p>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {items.map((item, index) => (
           <div
@@ -159,11 +196,16 @@ export function MediaGrid({
               </div>
               <div className="flex gap-0.5">
                 {item.type === "photo" && (
-                  <IconButton onClick={() => handleSetCover(item.id)} label="Usar como portada">
-                    <Star className="h-3.5 w-3.5" />
+                  <IconButton
+                    onClick={() => handleSetCover(item.id)}
+                    label="Usar como portada"
+                    active={item.id === coverMediaId}
+                    busy={coverPendingId === item.id}
+                  >
+                    <Star className={cn("h-3.5 w-3.5", item.id === coverMediaId && "fill-current")} />
                   </IconButton>
                 )}
-                <IconButton onClick={() => handleEditCaption(item.id, item.caption)} label="Añadir descripción">
+                <IconButton onClick={() => openCaptionEditor(item.id, item.caption)} label="Añadir descripción">
                   <Pencil className="h-3.5 w-3.5" />
                 </IconButton>
                 <IconButton onClick={() => handleDelete(item.id)} label="Eliminar">
@@ -171,6 +213,51 @@ export function MediaGrid({
                 </IconButton>
               </div>
             </div>
+
+            {item.caption && captionEditingId !== item.id && (
+              <p className="absolute inset-x-0 bottom-0 truncate bg-black/50 px-2 py-1 text-[11px] text-white">
+                {item.caption}
+              </p>
+            )}
+
+            {captionEditingId === item.id && (
+              <div
+                className="absolute inset-0 z-10 flex flex-col justify-end bg-black/70 p-2"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <textarea
+                  autoFocus
+                  value={captionDraft}
+                  onChange={(e) => setCaptionDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      saveCaption(item.id);
+                    }
+                    if (e.key === "Escape") setCaptionEditingId(null);
+                  }}
+                  placeholder="Descripción de esta foto (opcional)"
+                  className="mb-1.5 w-full resize-none rounded-md border-0 bg-white/95 p-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  rows={2}
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCaptionEditingId(null)}
+                    className="rounded-md bg-white/20 px-2 py-1 text-[11px] text-white hover:bg-white/30"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveCaption(item.id)}
+                    className="rounded-md bg-amber-500 px-2 py-1 text-[11px] font-medium text-white hover:bg-amber-600"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -191,17 +278,25 @@ function IconButton({
   children,
   onClick,
   label,
+  active,
+  busy,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   label: string;
+  active?: boolean;
+  busy?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={busy}
       aria-label={label}
-      className="rounded-md bg-white/90 p-1 text-ink-900 hover:bg-white focus-ring"
+      className={cn(
+        "rounded-md p-1 hover:bg-white focus-ring disabled:opacity-50",
+        active ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-white/90 text-ink-900"
+      )}
     >
       {children}
     </button>

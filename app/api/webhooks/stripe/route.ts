@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { shouldSkipOrderFulfillment } from "@/lib/business/order-idempotency";
 import { fulfillPaidOrder } from "@/lib/fulfillment/fulfill-order";
 import { computeRenewalDueDate } from "@/lib/business/renewal";
+import { sendEmail } from "@/lib/email/resend";
+import { formatEuros } from "@/lib/format";
 
 // Los webhooks de Stripe llegan sin sesión de usuario, así que esta
 // ruta usa siempre el cliente admin (service_role) — es el único sitio
@@ -115,6 +117,8 @@ async function handleCheckoutCompleted(session: import("stripe").Stripe.Checkout
   // se reserva stock de NFC físico.
   await fulfillPaidOrder(admin, orderId, o.user_id);
 
+  await sendOrderConfirmationEmail(admin, orderId, o.user_id, session.amount_total ?? 0);
+
   // Pago de renovación (spec #10): este pedido no da créditos nuevos
   // (el producto RENEWAL los tiene a 0 a propósito), solo alarga la
   // fecha de conservación del álbum concreto que lo generó.
@@ -126,5 +130,61 @@ async function handleCheckoutCompleted(session: import("stripe").Stripe.Checkout
         renewal_reminder_sent_at: null,
       })
       .eq("id", o.renewal_album_id);
+  }
+}
+
+/**
+ * Email de confirmación de compra (spec #16: antes no existía ninguno).
+ * Nunca debe poder tirar abajo el webhook si falla — por eso va al
+ * final, después de fulfillPaidOrder, envuelto en try/catch.
+ *
+ * Incluye, en letra pequeña, el aviso de que los álbumes Premium y los
+ * packs de créditos se conservan 5 años y hay que renovarlos para
+ * seguir guardándolos (spec #10): el usuario preguntó explícitamente
+ * cómo se iba a enterar de la renovación, además del aviso por email
+ * que ya manda el cron 30 días antes de que toque pagar
+ * (app/api/cron/renewals/route.ts) — esto es el primer sitio donde lo ve,
+ * desde el día 0, no solo cuando ya casi toca renovar.
+ */
+async function sendOrderConfirmationEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+  userId: string,
+  amountTotalCents: number
+) {
+  try {
+    const [{ data: authUser }, { data: items }] = await Promise.all([
+      admin.auth.admin.getUserById(userId),
+      admin
+        .from("order_items")
+        .select("quantity, products ( name )")
+        .eq("order_id", orderId),
+    ]);
+
+    const email = authUser.user?.email;
+    if (!email) return;
+
+    const productLines = ((items as any[]) ?? [])
+      .map((item) => `<li>${item.quantity}× ${item.products?.name ?? "Producto"}</li>`)
+      .join("");
+
+    await sendEmail({
+      to: email,
+      subject: "Hemos recibido tu pago — Toca y Recuerda",
+      html: `
+        <p>¡Gracias por tu compra!</p>
+        <p>Hemos confirmado tu pago de <strong>${formatEuros(amountTotalCents)}</strong>:</p>
+        <ul>${productLines}</ul>
+        <p>Ya puedes usarlo desde tu cuenta en Toca y Recuerda.</p>
+        <p style="margin-top:24px;color:#8C9BAC;font-size:11px;line-height:1.5;">
+          Los álbumes y créditos de este pedido se conservan de forma gratuita durante 5 años desde su
+          publicación. Pasado ese plazo, te avisaremos por email con tiempo de sobra para renovar la
+          conservación con un pago único; si no se renueva, el álbum se elimina de forma permanente.
+        </p>
+        <p>— Toca y Recuerda</p>
+      `,
+    });
+  } catch (err) {
+    console.error("sendOrderConfirmationEmail:", err);
   }
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Users, Image as ImageIcon, Nfc, Package, ShoppingBag } from "lucide-react";
+import { BarChart3, Users, Image as ImageIcon, Nfc, Package, ShoppingBag, Mail } from "lucide-react";
 
 const NAV = [
   { href: "/admin", label: "Métricas", icon: BarChart3, exact: true },
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/nfc", label: "NFC", icon: Nfc },
   { href: "/admin/pedidos", label: "Pedidos", icon: Package },
   { href: "/admin/productos", label: "Productos", icon: ShoppingBag },
+  { href: "/admin/contacto", label: "Contacto", icon: Mail },
 ];
 
 export function AdminNav() {

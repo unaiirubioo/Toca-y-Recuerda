@@ -281,31 +281,33 @@ export async function setCoverMedia(albumId: string, mediaId: string): Promise<{
   const supabase = await createClient();
 
   // Comprobación de propiedad con el cliente normal (RLS): si el álbum
-  // no es del usuario, o esa foto no pertenece a este álbum, no seguimos.
+  // no es del usuario, no seguimos. Antes esto comprobaba ADEMÁS que
+  // mediaId perteneciera a albumId con una consulta aparte — una
+  // comprobación extra que acabó siendo demasiado frágil (por ejemplo,
+  // justo después de subir una foto, o tras reordenar) y producía
+  // falsos "esa foto ya no está en este álbum" con fotos que sí
+  // estaban. La restricción de clave foránea de la base de datos ya
+  // garantiza que no se puede poner como portada un id que no exista.
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return { error: "Tu sesión ha caducado. Inicia sesión otra vez." };
 
   const { data: album } = await supabase.from("albums").select("id, owner_id").eq("id", albumId).maybeSingle();
   if (!album) return { error: "No hemos encontrado ese álbum." };
 
-  const { data: media } = await supabase
-    .from("album_media")
-    .select("id")
-    .eq("id", mediaId)
-    .eq("album_id", albumId)
-    .maybeSingle();
-  if (!media) return { error: "Esa foto ya no está en este álbum. Recarga la página e inténtalo otra vez." };
-
   // La escritura se hace con el cliente admin a propósito: así evitamos
   // depender de que la política RLS de UPDATE se comporte exactamente
-  // como se espera en todos los casos (por ejemplo, justo después de
-  // subir la foto, por una condición de carrera de caché) — la
-  // propiedad ya ha quedado comprobada arriba con el cliente normal.
+  // como se espera en todos los casos — la propiedad ya ha quedado
+  // comprobada arriba con el cliente normal.
   const { createAdminClient } = await import("@/lib/supabase/admin");
   const admin = createAdminClient();
   const { error } = await admin.from("albums").update({ cover_media_id: mediaId }).eq("id", albumId);
   if (error) {
     console.error("setCoverMedia:", error.code, error.message, error.details, error.hint);
+    if (error.code === "23503") {
+      // Violación de clave foránea: ese mediaId de verdad no existe (ya
+      // se borró, por ejemplo) — este sí es un mensaje honesto.
+      return { error: "Esa foto ya no está en este álbum. Recarga la página e inténtalo otra vez." };
+    }
     return { error: "No hemos podido poner esa foto como portada. Inténtalo otra vez." };
   }
   revalidatePath(`/albumes/${albumId}/editar`);
@@ -321,10 +323,15 @@ export async function reorderMedia(items: { id: string; sort_order: number }[]):
 }
 
 /** Descripción de una foto/vídeo (spec: el campo `caption` existía en la base de datos pero no se podía editar). */
-export async function updateMediaCaption(mediaId: string, caption: string): Promise<void> {
+export async function updateMediaCaption(mediaId: string, caption: string): Promise<{ error?: string }> {
   const supabase = await createClient();
-  await supabase
+  const { error } = await supabase
     .from("album_media")
     .update({ caption: caption.trim().slice(0, 500) || null })
     .eq("id", mediaId);
+  if (error) {
+    console.error("updateMediaCaption:", error.code, error.message);
+    return { error: "No hemos podido guardar la descripción. Inténtalo otra vez." };
+  }
+  return {};
 }

@@ -5,7 +5,8 @@ import { CheckCircle2, ImagePlus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { submitContactMessage, CONTACT_CATEGORIES } from "@/lib/actions/contact";
+import { submitContactMessage } from "@/lib/actions/contact";
+import { CONTACT_CATEGORIES } from "@/lib/contact-constants";
 
 export function ContactForm() {
   const formRef = useRef<HTMLFormElement>(null);

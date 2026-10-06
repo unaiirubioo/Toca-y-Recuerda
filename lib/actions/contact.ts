@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 import { getClientIp } from "@/lib/security/client-ip";
 import { sendEmail } from "@/lib/email/resend";
+import { CONTACT_BUCKET, CONTACT_CATEGORIES } from "@/lib/contact-constants";
 
 // A dónde te llega el aviso de "alguien ha escrito por contacto". Se
 // puede cambiar sin tocar código con la variable de entorno
@@ -13,21 +14,8 @@ import { sendEmail } from "@/lib/email/resend";
 // (por eso `||` y no `??`), se usa esta por defecto.
 const NOTIFICATION_EMAIL = process.env.CONTACT_NOTIFICATION_EMAIL || "unairubiocr@gmail.com";
 
-export const CONTACT_BUCKET = "contact-attachments";
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB — igual que el límite del bucket (migración 0010)
 const ACCEPTED_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/gif"];
-
-// Categorías del formulario de contacto (spec: "varias opciones en
-// plan categorías, las que veas tú") — ayudan a priorizar de un
-// vistazo qué tipo de mensaje es antes de abrirlo.
-export const CONTACT_CATEGORIES = [
-  { value: "consulta_general", label: "Consulta general" },
-  { value: "soporte_tecnico", label: "Problema técnico con la web" },
-  { value: "pedido_facturacion", label: "Pedido o facturación" },
-  { value: "nfc_album", label: "Problema con un NFC o un álbum" },
-  { value: "sugerencia", label: "Sugerencia" },
-  { value: "otro", label: "Otro" },
-] as const;
 const CATEGORY_VALUES = CONTACT_CATEGORIES.map((c) => c.value) as [string, ...string[]];
 
 const schema = z.object({

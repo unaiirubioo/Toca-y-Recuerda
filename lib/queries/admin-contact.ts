@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/security/require-admin";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CONTACT_BUCKET, CONTACT_CATEGORIES } from "@/lib/actions/contact";
+import { CONTACT_BUCKET, CONTACT_CATEGORIES } from "@/lib/contact-constants";
 
 export type ContactMessageRow = {
   id: string;
